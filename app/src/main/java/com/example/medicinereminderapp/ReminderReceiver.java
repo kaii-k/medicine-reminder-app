@@ -21,12 +21,18 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         // Full-screen intent to AlarmActivity
         Intent alarm = new Intent(context, AlarmActivity.class);
-        alarm.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
+        alarm.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         alarm.putExtras(intent.getExtras());
+
+        // FIXED: Handle PendingIntent flags for different Android versions
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
 
         PendingIntent fullScreenPI = PendingIntent.getActivity(
                 context, (name + hour + ":" + minute).hashCode(),
-                alarm, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                alarm, flags);
 
         // Build high-priority notification
         NotificationCompat.Builder nb = new NotificationCompat.Builder(context, CHANNEL_ID)
@@ -39,10 +45,16 @@ public class ReminderReceiver extends BroadcastReceiver {
                 .setFullScreenIntent(fullScreenPI, true);
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.notify((int) System.currentTimeMillis(), nb.build());
+        if (nm != null) {
+            nm.notify((int) System.currentTimeMillis(), nb.build());
+        }
 
-        // Launch the full-screen activity immediately
-        context.startActivity(alarm);
+        // FIXED: Only start activity if not already active to prevent crashes
+        try {
+            context.startActivity(alarm);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // Re-schedule for tomorrow
         int req = (name + hour + ":" + minute).hashCode();
@@ -52,16 +64,18 @@ public class ReminderReceiver extends BroadcastReceiver {
     private void createChannels(Context ctx) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = ctx.getSystemService(NotificationManager.class);
-            android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build();
+            if (nm != null) {
+                android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build();
 
-            NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "SmartMed Alarms", NotificationManager.IMPORTANCE_HIGH);
-            ch.enableVibration(true);
-            ch.setSound(android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI, attrs);
-            nm.createNotificationChannel(ch);
+                NotificationChannel ch = new NotificationChannel(
+                        CHANNEL_ID, "SmartMed Alarms", NotificationManager.IMPORTANCE_HIGH);
+                ch.enableVibration(true);
+                ch.setSound(android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI, attrs);
+                nm.createNotificationChannel(ch);
+            }
         }
     }
 }

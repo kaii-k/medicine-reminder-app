@@ -54,4 +54,25 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put("status", status);
         db.update(TABLE_MEDICINES, cv, "id=?", new String[]{String.valueOf(id)});
     }
+    // ADD THESE METHODS TO YOUR DatabaseHelper.java:
+
+    public boolean deleteMedicine(int id) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        return db.delete(TABLE_MEDICINES, "id=?", new String[]{String.valueOf(id)}) > 0;
+    }
+
+    public boolean updateMedicine(int id, String name, String dose, String time, String notes) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put("name", name);
+        cv.put("dose", dose);
+        cv.put("time", time);
+        cv.put("notes", notes);
+        return db.update(TABLE_MEDICINES, cv, "id=?", new String[]{String.valueOf(id)}) > 0;
+    }
+
+    public Cursor getMedicineById(int id) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.rawQuery("SELECT * FROM " + TABLE_MEDICINES + " WHERE id=?", new String[]{String.valueOf(id)});
+    }
 }
