@@ -49,7 +49,18 @@ public class AlarmScheduler {
         String notes = prevIntent.getStringExtra("notes");
         scheduleDailyExact(ctx, requestCode, name, dose, notes, hour, minute);
     }
+    // Add this method to handle alarm cancellation
+    public static void cancelAlarm(Context ctx, int requestCode) {
+        Intent i = new Intent(ctx, ReminderReceiver.class);
+        PendingIntent pi = PendingIntent.getBroadcast(
+                ctx, requestCode, i,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
 
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        if (am != null) {
+            am.cancel(pi);
+        }
+    }
     public static long nextTriggerMillis(int hour24, int minute) {
         Calendar c = Calendar.getInstance();
         c.set(Calendar.SECOND, 0);

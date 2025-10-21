@@ -45,6 +45,7 @@
 
         <activity android:name=".AddMedicineActivity" />
         <activity android:name=".MedicineListActivity" />
+        <activity android:name=".EditMedicineActivity" />
 
         <!-- Alarm receiver -->
         <receiver

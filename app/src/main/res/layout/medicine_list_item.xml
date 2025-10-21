@@ -1,6 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:background="@android:color/white">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- Medicine Info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/medicineName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Medicine Name"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/medicineDose"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Dose: 1"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:id="@+id/medicineTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Time: 08:00"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/medicineStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Status: Pending"
+            android:textSize="12sp"
+            android:textColor="#FF9800"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Edit Button -->
+        <Button
+            android:id="@+id/editBtn"
+            android:layout_width="80dp"
+            android:layout_height="40dp"
+            android:text="Edit"
+            android:backgroundTint="#4CAF50"
+            android:textColor="@android:color/white"
+            android:textSize="12sp" />
+
+        <!-- Delete Button -->
+        <Button
+            android:id="@+id/deleteBtn"
+            android:layout_width="80dp"
+            android:layout_height="40dp"
+            android:text="Delete"
+            android:backgroundTint="#F44336"
+            android:textColor="@android:color/white"
+            android:layout_marginTop="8dp"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,124 +1,175 @@
 package com.example.medicinereminderapp;
 
+import android.app.KeyguardManager;
 import android.content.Context;
-import android.content.Intent;
-import android.media.Ringtone;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.*;
-import android.speech.tts.TextToSpeech;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.TextView;
+import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
-import java.util.Locale;
+import java.util.Calendar;
 
 public class AlarmActivity extends AppCompatActivity {
 
-    private Ringtone ringtone;
+    private MediaPlayer mediaPlayer;
     private Vibrator vibrator;
-    private TextToSpeech tts;
+    private boolean isAlarmActive = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Turn screen on & show when locked
-        getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        // Make it work on lock screen
+        wakeUpDevice();
         setContentView(R.layout.activity_alarm);
 
+        // Get medicine details from intent
+        String medicineName = getIntent().getStringExtra("name");
+        String dose = getIntent().getStringExtra("dose");
+        String notes = getIntent().getStringExtra("notes");
+
+        setupViews(medicineName, dose, notes);
+        startAlarm();
+    }
+
+    private void wakeUpDevice() {
+        // Turn on screen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setTurnScreenOn(true);
+            setShowWhenLocked(true);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            );
+        }
+
+        // Unlock device if possible
+        KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        if (keyguardManager != null && keyguardManager.isKeyguardLocked()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                keyguardManager.requestDismissKeyguard(this, null);
+            }
+        }
+    }
+
+    private void setupViews(String medicineName, String dose, String notes) {
+        // Find views - using your layout IDs
+        TextView medicineNameText = findViewById(R.id.medicineName);
+        TextView doseText = findViewById(R.id.doseText);
+        TextView notesText = findViewById(R.id.notesText);
+        Button dismissBtn = findViewById(R.id.dismissBtn);
+        Button snoozeBtn = findViewById(R.id.snoozeBtn);
+
+        // Set medicine information
+        medicineNameText.setText(medicineName);
+        doseText.setText("Dose: " + dose);
+
+        if (notes != null && !notes.isEmpty()) {
+            notesText.setText("Notes: " + notes);
+        } else {
+            notesText.setText("No additional notes");
+        }
+
+        // Dismiss button - stops alarm and closes activity
+        dismissBtn.setOnClickListener(v -> {
+            stopAlarm();
+            finish();
+        });
+
+        // Snooze button - stops alarm and reschedules for 10 minutes later
+        snoozeBtn.setOnClickListener(v -> {
+            stopAlarm();
+            snoozeAlarm();
+            finish();
+        });
+    }
+
+    private void startAlarm() {
+        // Play alarm sound
+        try {
+            Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (alarmUri == null) {
+                alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
+            mediaPlayer = MediaPlayer.create(this, alarmUri);
+            mediaPlayer.setLooping(true);
+            mediaPlayer.start();
+        } catch (Exception e) {
+            // Log error
+            android.util.Log.e("AlarmActivity", "Error playing alarm sound", e);
+        }
+
+        // Start vibration
+        vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            long[] pattern = {0, 1000, 1000}; // Wait 0, vibrate 1s, sleep 1s
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+            } else {
+                vibrator.vibrate(pattern, 0);
+            }
+        }
+    }
+
+    private void stopAlarm() {
+        isAlarmActive = false;
+
+        // Stop sound
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+
+        // Stop vibration
+        if (vibrator != null) {
+            vibrator.cancel();
+        }
+    }
+
+    private void snoozeAlarm() {
+        // Get original alarm details
         String name = getIntent().getStringExtra("name");
         String dose = getIntent().getStringExtra("dose");
         String notes = getIntent().getStringExtra("notes");
-        int hour = getIntent().getIntExtra("hour", 9);
-        int minute = getIntent().getIntExtra("minute", 0);
 
-        TextView title = findViewById(R.id.alarmTitle);
-        TextView detail = findViewById(R.id.alarmDetail);
-        Button btnTaken = findViewById(R.id.btnTaken);
-        Button btnSnooze = findViewById(R.id.btnSnooze);
-        Button btnDismiss = findViewById(R.id.btnDismiss);
+        // Schedule alarm for 10 minutes from now
+        long snoozeTime = System.currentTimeMillis() + (10 * 60 * 1000); // 10 minutes
 
-        title.setText("Time to take your medicine!");
-        detail.setText("Name: " + name + "\nDose: " + dose +
-                (notes == null || notes.isEmpty() ? "" : "\nNotes: " + notes));
+        int reqCode = (name + "snooze" + System.currentTimeMillis()).hashCode();
 
-        startAlarmSound();
-        startVibration();
-        startTTS(name, dose, notes, hour, minute);
+        // Convert snooze time to hour and minute for the existing method
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(snoozeTime);
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
 
-        btnTaken.setOnClickListener(v -> {
-            stopAll();
-            finish();
-        });
+        // Use the CORRECT method name that exists in AlarmScheduler
+        AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour, minute);
 
-        btnSnooze.setOnClickListener(v -> {
-            stopAll();
-            // snooze 5 minutes
-            int req = (name + hour + ":" + minute).hashCode();
-            long triggerAt = System.currentTimeMillis() + 5 * 60 * 1000;
-            Intent i = new Intent(this, ReminderReceiver.class);
-            i.putExtra("name", name); i.putExtra("dose", dose); i.putExtra("notes", notes);
-            i.putExtra("hour", hour); i.putExtra("minute", minute);
-            PendingIntentUtil.setExactOneShot(this, req, i, triggerAt);
-            finish();
-        });
-
-        btnDismiss.setOnClickListener(v -> {
-            stopAll();
-            finish();
-        });
-    }
-
-    private void startAlarmSound() {
-        Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        ringtone = RingtoneManager.getRingtone(getApplicationContext(), uri);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ringtone.setLooping(true);
-        }
-        ringtone.play();
-    }
-
-    private void startVibration() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
-            vibrator = vm.getDefaultVibrator();
-        } else {
-            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-        }
-        long[] pattern = {0, 800, 400, 800, 400};
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            VibrationEffect effect = VibrationEffect.createWaveform(pattern, 0);
-            vibrator.vibrate(effect);
-        } else {
-            vibrator.vibrate(pattern, 0);
-        }
-    }
-
-    private void startTTS(String name, String dose, String notes, int hour, int minute) {
-        String hh = String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
-        String speech = "It is " + hh + ". Please take your medicine. Name: " + name + ". Dose: " + dose + ". " + (notes == null || notes.isEmpty() ? "" : "Note: " + notes + ". ");
-        tts = new TextToSpeech(this, status -> {
-            if (status != TextToSpeech.ERROR) {
-                tts.setLanguage(Locale.US);
-                tts.speak(speech, TextToSpeech.QUEUE_FLUSH, null, "smartmed_alarm_tts");
-            }
-        });
-    }
-
-    private void stopAll() {
-        try { if (ringtone != null && ringtone.isPlaying()) ringtone.stop(); } catch (Exception ignore) {}
-        try { if (vibrator != null) vibrator.cancel(); } catch (Exception ignore) {}
-        try { if (tts != null) { tts.stop(); tts.shutdown(); } } catch (Exception ignore) {}
+        Toast.makeText(this, "Alarm snoozed for 10 minutes", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        stopAll();
+        if (isAlarmActive) {
+            stopAlarm();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Don't stop alarm when activity goes to background
+        // Alarm should keep ringing until dismissed
     }
 }

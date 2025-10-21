@@ -78,4 +78,7 @@ public class ReminderReceiver extends BroadcastReceiver {
             }
         }
     }
+
+    public static class MedicineAdapter {
+    }
 }

@@ -45,7 +45,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public Cursor getAllMedicines() {
         SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_MEDICINES, null);
+        return db.rawQuery("SELECT * FROM " + TABLE_MEDICINES + " ORDER BY time ASC", null);
     }
 
     public void updateStatus(int id, String status) {
@@ -54,8 +54,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put("status", status);
         db.update(TABLE_MEDICINES, cv, "id=?", new String[]{String.valueOf(id)});
     }
-    // ADD THESE METHODS TO YOUR DatabaseHelper.java:
 
+    // DELETE METHOD - ONLY ONE VERSION
     public boolean deleteMedicine(int id) {
         SQLiteDatabase db = this.getWritableDatabase();
         return db.delete(TABLE_MEDICINES, "id=?", new String[]{String.valueOf(id)}) > 0;

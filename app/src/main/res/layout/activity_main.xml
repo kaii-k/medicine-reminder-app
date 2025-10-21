@@ -1,22 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="30dp"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="24dp">
 
     <Button
         android:id="@+id/addBtn"
-        android:text="➕ Add Medicine Reminder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="10dp"/>
+        android:text="@string/btn_add_medicine"
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/viewBtn"
-        android:text="📋 View All Medicines"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="10dp"/>
+        android:text="@string/btn_view_medicines"
+        android:layout_marginBottom="16dp" />
+
+    <!-- TEST BUTTON -->
+    <Button
+        android:id="@+id/testBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/btn_test_alarm"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="@color/teal_700"
+        android:textColor="@color/white" />
+
 </LinearLayout>

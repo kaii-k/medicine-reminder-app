@@ -1,49 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Medicine Name -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Medicine Name"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/nameInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter medicine name"
+        android:inputType="textCapWords"
+        android:autofillHints="name" />
+
+    <!-- Dose -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Dose"
+        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/doseInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g., 1 tablet, 5ml"
+        android:inputType="text"
+        android:autofillHints="none" />
+
+    <!-- Time Selection -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Time"
+        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp" />
 
     <LinearLayout
-        android:orientation="vertical"
-        android:padding="20dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
 
+        <!-- Hour Input -->
         <EditText
-            android:id="@+id/nameInput"
-            android:hint="Medicine Name"
-            android:inputType="textCapWords"
-            android:layout_width="match_parent"
+            android:id="@+id/hourInput"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"/>
+            android:layout_weight="1"
+            android:hint="HH"
+            android:inputType="number"
+            android:maxLength="2"
+            android:autofillHints="none" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=":"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+
+        <!-- Minute Input -->
         <EditText
-            android:id="@+id/doseInput"
-            android:hint="Dose (e.g. 1 tablet)"
-            android:layout_width="match_parent"
+            android:id="@+id/minuteInput"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"/>
+            android:layout_weight="1"
+            android:hint="MM"
+            android:inputType="number"
+            android:maxLength="2"
+            android:autofillHints="none" />
 
-        <EditText
-            android:id="@+id/timeInput"
-            android:hint="Time (HH:mm)"
-            android:inputType="time"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"/>
-
-        <EditText
-            android:id="@+id/notesInput"
-            android:hint="Notes (Optional)"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"/>
-
+        <!-- AM/PM Toggle -->
         <Button
-            android:id="@+id/saveBtn"
-            android:layout_width="match_parent"
+            android:id="@+id/ampmBtn"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="15dp"
-            android:text="💾 Save Reminder" />
+            android:layout_weight="1"
+            android:text="AM"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#2196F3"
+            android:textColor="@android:color/white" />
+
     </LinearLayout>
-</ScrollView>
+
+    <!-- Notes -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Notes (Optional)"
+        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/notesInput"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:hint="Any additional notes..."
+        android:inputType="textMultiLine"
+        android:gravity="top"
+        android:autofillHints="none" />
+
+    <!-- Save Button -->
+    <Button
+        android:id="@+id/saveBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Save Medicine"
+        android:layout_marginTop="24dp"
+        android:backgroundTint="#4CAF50"
+        android:textColor="@android:color/white" />
+
+</LinearLayout>

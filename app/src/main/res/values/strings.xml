@@ -1,10 +1,18 @@
 <resources>
     <string name="app_name">MedicineReminderApp</string>
+
     <!-- Alarm Activity Strings -->
-    <string name="alarm_title">Time to take your medicine!</string>
+    <string name="alarm_title">MEDICINE REMINDER!</string>
     <string name="btn_taken">Taken</string>
     <string name="btn_snooze">Snooze 5m</string>
     <string name="btn_dismiss">Dismiss</string>
+    <string name="alarm_icon_description">Alarm icon</string>
+    <string name="medicine_name_default">Medicine Name</string>
+    <string name="dose_default">Dose: 1 tablet</string>
+    <string name="notes_default">Notes: Take with food</string>
+    <string name="snooze_button">SNOOZE</string>
+    <string name="dismiss_button">DISMISS</string>
+    <string name="take_medicine_now">Take your medicine now!</string>
 
     <!-- Add Medicine Strings -->
     <string name="hint_medicine_name">Medicine Name</string>
@@ -12,7 +20,9 @@
     <string name="hint_time">Time (HH:mm)</string>
     <string name="hint_notes">Notes (Optional)</string>
     <string name="btn_save">💾 Save Reminder</string>
+
     <!-- Main Activity Strings -->
     <string name="btn_add_medicine">➕ Add Medicine Reminder</string>
     <string name="btn_view_medicines">📋 View All Medicines</string>
+    <string name="btn_test_alarm">🔔 TEST ALARM (1 min)</string>
 </resources>

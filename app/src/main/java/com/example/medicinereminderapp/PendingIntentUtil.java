@@ -17,4 +17,7 @@ public class PendingIntentUtil {
             am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi);
         }
     }
+
+    public static class EditMedicineActivity {
+    }
 }
