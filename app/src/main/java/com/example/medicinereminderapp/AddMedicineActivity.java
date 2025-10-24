@@ -10,16 +10,27 @@ public class AddMedicineActivity extends AppCompatActivity {
 
     EditText nameInput, doseInput, hourInput, minuteInput, notesInput;
     Button saveBtn, ampmBtn;
+    Spinner repeatSpinner, durationSpinner;
     DatabaseHelper db;
-    private final Random random = new Random(); // Made final
-    private boolean isAM = true; // Default to AM
+    private final Random random = new Random();
+    private boolean isAM = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_medicine);
 
-        // Initialize views - FIXED: Using correct IDs
+        initializeViews();
+        setupSpinners();
+        db = new DatabaseHelper(this);
+
+        // AM/PM Toggle Button
+        ampmBtn.setOnClickListener(v -> toggleAmPm());
+
+        saveBtn.setOnClickListener(v -> saveMedicine());
+    }
+
+    private void initializeViews() {
         nameInput = findViewById(R.id.nameInput);
         doseInput = findViewById(R.id.doseInput);
         hourInput = findViewById(R.id.hourInput);
@@ -27,88 +38,129 @@ public class AddMedicineActivity extends AppCompatActivity {
         notesInput = findViewById(R.id.notesInput);
         saveBtn = findViewById(R.id.saveBtn);
         ampmBtn = findViewById(R.id.ampmBtn);
-        db = new DatabaseHelper(this);
 
-        // AM/PM Toggle Button
-        ampmBtn.setOnClickListener(v -> {
-            isAM = !isAM;
-            ampmBtn.setText(isAM ? "AM" : "PM");
+        // Initialize spinners
+        repeatSpinner = findViewById(R.id.repeatSpinner);
+        durationSpinner = findViewById(R.id.durationSpinner);
+    }
 
-            // Use ContextCompat to fix deprecated method
-            int color = ContextCompat.getColor(this,
-                    isAM ? android.R.color.holo_blue_light : android.R.color.holo_red_light);
-            ampmBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(color));
-        });
+    private void setupSpinners() {
+        // Repeat options
+        String[] repeatOptions = {"Daily", "Weekly", "Monthly"};
+        ArrayAdapter<String> repeatAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, repeatOptions);
+        repeatAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        repeatSpinner.setAdapter(repeatAdapter);
 
-        saveBtn.setOnClickListener(v -> {
-            String name = nameInput.getText().toString();
-            String dose = doseInput.getText().toString();
-            String hourStr = hourInput.getText().toString();
-            String minuteStr = minuteInput.getText().toString();
-            String notes = notesInput.getText().toString();
+        // Duration options
+        String[] durationOptions = {"1 week", "2 weeks", "1 month", "3 months", "Ongoing"};
+        ArrayAdapter<String> durationAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, durationOptions);
+        durationAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        durationSpinner.setAdapter(durationAdapter);
+    }
 
-            if (name.isEmpty() || dose.isEmpty() || hourStr.isEmpty() || minuteStr.isEmpty()) {
-                Toast.makeText(this, "Please fill all required fields", Toast.LENGTH_SHORT).show();
+    private void toggleAmPm() {
+        isAM = !isAM;
+        ampmBtn.setText(isAM ? "AM" : "PM");
+        int color = ContextCompat.getColor(this,
+                isAM ? android.R.color.holo_blue_light : android.R.color.holo_red_light);
+        ampmBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(color));
+    }
+
+    private void saveMedicine() {
+        String name = nameInput.getText().toString();
+        String dose = doseInput.getText().toString();
+        String hourStr = hourInput.getText().toString();
+        String minuteStr = minuteInput.getText().toString();
+        String notes = notesInput.getText().toString();
+
+        if (name.isEmpty() || dose.isEmpty() || hourStr.isEmpty() || minuteStr.isEmpty()) {
+            Toast.makeText(this, "Please fill all required fields", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            int hour = Integer.parseInt(hourStr);
+            int minute = Integer.parseInt(minuteStr);
+
+            // Validate hour (1-12 for 12-hour format)
+            if (hour < 1 || hour > 12) {
+                Toast.makeText(this, "Please enter hour between 1-12", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            try {
-                int hour = Integer.parseInt(hourStr);
-                int minute = Integer.parseInt(minuteStr);
-
-                // Validate hour (1-12 for 12-hour format)
-                if (hour < 1 || hour > 12) {
-                    Toast.makeText(this, "Please enter hour between 1-12", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                // Validate minute (0-59)
-                if (minute < 0 || minute > 59) {
-                    Toast.makeText(this, "Please enter minute between 00-59", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                // Convert to 24-hour format for alarm scheduling
-                int hour24 = convertTo24Hour(hour, isAM);
-
-                // Format time for display (HH:MM AM/PM)
-                String displayTime = formatTimeForDisplay(hour, minute, isAM);
-
-                // Now save to database and schedule alarm
-                if (db.insertMedicine(name, dose, displayTime, notes)) {
-                    // Generate UNIQUE request code to prevent conflicts
-                    int reqCode = generateUniqueRequestCode(name, displayTime);
-
-                    AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour24, minute);
-                    Toast.makeText(this, "Medicine saved & daily alarm set!", Toast.LENGTH_LONG).show();
-                    finish();
-                } else {
-                    Toast.makeText(this, "Error saving medicine!", Toast.LENGTH_SHORT).show();
-                }
-
-            } catch (NumberFormatException e) {
-                Toast.makeText(this, "Please enter valid numbers for time", Toast.LENGTH_SHORT).show();
+            // Validate minute (0-59)
+            if (minute < 0 || minute > 59) {
+                Toast.makeText(this, "Please enter minute between 00-59", Toast.LENGTH_SHORT).show();
+                return;
             }
-        });
-    }
 
-    // Convert 12-hour to 24-hour format
-    private int convertTo24Hour(int hour12, boolean isAM) {
-        if (isAM) {
-            return (hour12 == 12) ? 0 : hour12; // 12 AM = 0, 1-11 AM = 1-11
-        } else {
-            return (hour12 == 12) ? 12 : hour12 + 12; // 12 PM = 12, 1-11 PM = 13-23
+            // Get repeat type and duration
+            String repeatType = repeatSpinner.getSelectedItem().toString();
+            String duration = durationSpinner.getSelectedItem().toString();
+
+            // Convert to 24-hour format for alarm scheduling
+            int hour24 = convertTo24Hour(hour, isAM);
+
+            // Format time for display
+            String displayTime = formatTimeForDisplay(hour, minute, isAM);
+
+            // Calculate end date based on duration
+            long endDate = calculateEndDate(duration);
+
+            // Save to database using the enhanced method
+            long medicineId = db.insertMedicineWithDetails(name, dose, displayTime, notes,
+                    repeatType, "All", duration, endDate);
+
+            if (medicineId != -1) {
+                // Schedule alarm using your existing AlarmScheduler
+                int reqCode = generateUniqueRequestCode(name, displayTime);
+
+                // Use your existing schedule method
+                AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour24, minute);
+
+                // Record the first dose in history
+                db.recordDoseHistory((int) medicineId, name, dose,
+                        System.currentTimeMillis(), 0, "scheduled");
+
+                Toast.makeText(this, "Medicine saved & alarm set!", Toast.LENGTH_LONG).show();
+                finish();
+            } else {
+                Toast.makeText(this, "Error saving medicine!", Toast.LENGTH_SHORT).show();
+            }
+
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "Please enter valid numbers for time", Toast.LENGTH_SHORT).show();
         }
     }
 
-    // Format time for display (e.g., "08:30 PM")
+    private long calculateEndDate(String duration) {
+        long currentTime = System.currentTimeMillis();
+        long millisInDay = 24 * 60 * 60 * 1000L;
+
+        switch (duration) {
+            case "1 week": return currentTime + (7 * millisInDay);
+            case "2 weeks": return currentTime + (14 * millisInDay);
+            case "1 month": return currentTime + (30 * millisInDay);
+            case "3 months": return currentTime + (90 * millisInDay);
+            case "Ongoing": return currentTime + (365 * millisInDay); // 1 year as "ongoing"
+            default: return currentTime + (365 * millisInDay);
+        }
+    }
+
+    private int convertTo24Hour(int hour12, boolean isAM) {
+        if (isAM) {
+            return (hour12 == 12) ? 0 : hour12;
+        } else {
+            return (hour12 == 12) ? 12 : hour12 + 12;
+        }
+    }
+
     private String formatTimeForDisplay(int hour, int minute, boolean isAM) {
         String minuteStr = (minute < 10) ? "0" + minute : String.valueOf(minute);
         String period = isAM ? "AM" : "PM";
         return hour + ":" + minuteStr + " " + period;
     }
 
-    // Generate unique request code to prevent alarm conflicts
     private int generateUniqueRequestCode(String name, String time) {
         return (name + time + System.currentTimeMillis() + random.nextInt(1000)).hashCode();
     }
