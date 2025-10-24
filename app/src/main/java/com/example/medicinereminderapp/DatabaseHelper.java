@@ -220,7 +220,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.rawQuery("SELECT * FROM " + TABLE_MEDICINES + " WHERE id=?", new String[]{String.valueOf(id)});
     }
-    // Enhanced update method with repeat options
+
+    // Enhanced update method with repeat options - ONLY ONE VERSION
     public boolean updateMedicineWithDetails(int id, String name, String dose, String time, String notes,
                                              String repeatType, String selectedDays, String duration, long endDate) {
         SQLiteDatabase db = this.getWritableDatabase();

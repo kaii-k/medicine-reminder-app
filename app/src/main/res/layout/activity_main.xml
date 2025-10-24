@@ -2,32 +2,53 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="24dp"
+    android:gravity="center">
 
+    <!-- Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💊 Medicine Reminder"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="40dp" />
+
+    <!-- Add Medicine Button -->
     <Button
-        android:id="@+id/addBtn"
+        android:id="@+id/addMedicineBtn"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/btn_add_medicine"
-        android:layout_marginBottom="16dp" />
+        android:text="Add Medicine Reminder"
+        android:textSize="18sp"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="#4CAF50"
+        android:textColor="@android:color/white" />
 
+    <!-- View All Medicines Button -->
     <Button
-        android:id="@+id/viewBtn"
+        android:id="@+id/viewMedicinesBtn"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/btn_view_medicines"
-        android:layout_marginBottom="16dp" />
+        android:text="View All Medicines"
+        android:textSize="18sp"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="#2196F3"
+        android:textColor="@android:color/white" />
 
-    <!-- TEST BUTTON -->
+    <!-- Reports Button -->
     <Button
-        android:id="@+id/testBtn"
+        android:id="@+id/reportsBtn"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/btn_test_alarm"
-        android:layout_marginTop="16dp"
-        android:backgroundTint="@color/teal_700"
-        android:textColor="@color/white" />
+        android:text="📊 View Reports"
+        android:textSize="18sp"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="#FF9800"
+        android:textColor="@android:color/white" />
 
 </LinearLayout>
