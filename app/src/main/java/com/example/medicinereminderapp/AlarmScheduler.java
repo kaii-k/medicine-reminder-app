@@ -10,50 +10,96 @@ import java.util.Calendar;
 
 public class AlarmScheduler {
 
-    public static void scheduleDailyExact(Context ctx, int requestCode,
-                                          String name, String dose, String notes,
-                                          int hour24, int minute) {
+    private static final String TAG = "AlarmScheduler";
 
-        // Set alarm for 1 minute from now for testing
-        long triggerAt = System.currentTimeMillis() + (60 * 1000); // 1 minute from now
+    public static void scheduleDailyExact(Context context, int requestCode,
+                                          String medicineName, String dose,
+                                          String notes, int hour24, int minute) {
+        try {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            Intent intent = new Intent(context, ReminderReceiver.class);
+            intent.putExtra("medicineName", medicineName);
+            intent.putExtra("dose", dose);
+            intent.putExtra("notes", notes);
+            intent.putExtra("requestCode", requestCode);
 
-        Log.d("AlarmScheduler", "=== SETTING SIMPLE ALARM ===");
-        Log.d("AlarmScheduler", "Will trigger in 1 minute");
-        Log.d("AlarmScheduler", "Current: " + System.currentTimeMillis());
-        Log.d("AlarmScheduler", "Trigger: " + triggerAt);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context,
+                    requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent i = new Intent(ctx, ReminderReceiver.class);
-        i.putExtra("name", name);
-        i.putExtra("dose", dose);
-        i.putExtra("notes", notes);
-        i.putExtra("requestCode", requestCode);
+            // Create calendar with EXACT time
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, hour24);
+            calendar.set(Calendar.MINUTE, minute);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
 
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
+            long alarmTime = calendar.getTimeInMillis();
+            long currentTime = System.currentTimeMillis();
 
-        PendingIntent pi = PendingIntent.getBroadcast(ctx, requestCode, i, flags);
+            Log.d(TAG, "Setting alarm for: " + hour24 + ":" + minute);
+            Log.d(TAG, "Alarm time in millis: " + alarmTime);
+            Log.d(TAG, "Current time in millis: " + currentTime);
 
-        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            // If the time has passed for today, set for tomorrow
+            if (alarmTime <= currentTime) {
+                calendar.add(Calendar.DAY_OF_YEAR, 1);
+                alarmTime = calendar.getTimeInMillis();
+                Log.d(TAG, "Alarm time passed, setting for tomorrow: " + calendar.getTime());
+            }
 
-        if (am != null) {
-            Log.d("AlarmScheduler", "AlarmManager found, using simple set()...");
+            Log.d(TAG, "Final alarm time: " + calendar.getTime());
 
-            // Use the basic set() method which should work on all devices
-            am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+            if (alarmManager != null) {
+                // For Android 6.0+ (Marshmallow), use setExactAndAllowWhileIdle
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
+                            alarmTime, pendingIntent);
+                    Log.d(TAG, "Used setExactAndAllowWhileIdle");
+                }
+                // For Android 4.4+ (KitKat), use setExact
+                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP,
+                            alarmTime, pendingIntent);
+                    Log.d(TAG, "Used setExact");
+                }
+                // For older versions, use set
+                else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP,
+                            alarmTime, pendingIntent);
+                    Log.d(TAG, "Used set");
+                }
 
-            Log.d("AlarmScheduler", "✅ ALARM SET WITH set() METHOD!");
-        } else {
-            Log.d("AlarmScheduler", "❌ AlarmManager is null!");
+                Log.d(TAG, "Alarm scheduled successfully!");
+                Log.d(TAG, "Will trigger at: " + calendar.getTime());
+            } else {
+                Log.e(TAG, "AlarmManager is null - cannot schedule alarm");
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error scheduling alarm: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    public static void rescheduleNextDay(Context ctx, int requestCode, Intent prevIntent) {
-        // Not used for testing
-    }
+    // Method to test alarm in 1 minute (for debugging)
+    public static void scheduleTestAlarm(Context context, String medicineName) {
+        try {
+            Calendar calendar = Calendar.getInstance();
+            calendar.add(Calendar.MINUTE, 1); // 1 minute from now
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
 
-    public static void cancelAlarm(Context ctx, int requestCode) {
-        // Not used for testing
+            int hour24 = calendar.get(Calendar.HOUR_OF_DAY);
+            int minute = calendar.get(Calendar.MINUTE);
+
+            int requestCode = (medicineName + "test").hashCode();
+
+            Log.d(TAG, "Setting TEST alarm for 1 minute from now: " + hour24 + ":" + minute);
+
+            scheduleDailyExact(context, requestCode, medicineName, "Test Dose", "Test Alarm", hour24, minute);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting test alarm: " + e.getMessage());
+        }
     }
 }

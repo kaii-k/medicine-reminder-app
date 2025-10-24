@@ -5,6 +5,7 @@ import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import java.util.Random;
+import android.util.Log;
 
 public class AddMedicineActivity extends AppCompatActivity {
 
@@ -101,6 +102,12 @@ public class AddMedicineActivity extends AppCompatActivity {
             // Convert to 24-hour format for alarm scheduling
             int hour24 = convertTo24Hour(hour, isAM);
 
+            // === DEBUG LOGGING ADDED HERE ===
+            Log.d("AddMedicine", "User entered: " + hour + ":" + minute + " " + (isAM ? "AM" : "PM"));
+            Log.d("AddMedicine", "Converted to 24h: " + hour24 + ":" + minute);
+            Log.d("AddMedicine", "Repeat Type: " + repeatType + ", Duration: " + duration);
+            // === END DEBUG LOGGING ===
+
             // Format time for display
             String displayTime = formatTimeForDisplay(hour, minute, isAM);
 
@@ -115,6 +122,11 @@ public class AddMedicineActivity extends AppCompatActivity {
                 // Schedule alarm using your existing AlarmScheduler
                 int reqCode = generateUniqueRequestCode(name, displayTime);
 
+                // === MORE DEBUG LOGGING ===
+                Log.d("AddMedicine", "Scheduling alarm with requestCode: " + reqCode);
+                Log.d("AddMedicine", "Calling AlarmScheduler with time: " + hour24 + ":" + minute);
+                // === END DEBUG LOGGING ===
+
                 // Use your existing schedule method
                 AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour24, minute);
 
@@ -122,7 +134,7 @@ public class AddMedicineActivity extends AppCompatActivity {
                 db.recordDoseHistory((int) medicineId, name, dose,
                         System.currentTimeMillis(), 0, "scheduled");
 
-                Toast.makeText(this, "Medicine saved & alarm set!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Medicine saved & alarm set for " + displayTime, Toast.LENGTH_LONG).show();
                 finish();
             } else {
                 Toast.makeText(this, "Error saving medicine!", Toast.LENGTH_SHORT).show();
@@ -132,7 +144,6 @@ public class AddMedicineActivity extends AppCompatActivity {
             Toast.makeText(this, "Please enter valid numbers for time", Toast.LENGTH_SHORT).show();
         }
     }
-
     private long calculateEndDate(String duration) {
         long currentTime = System.currentTimeMillis();
         long millisInDay = 24 * 60 * 60 * 1000L;
@@ -147,14 +158,6 @@ public class AddMedicineActivity extends AppCompatActivity {
         }
     }
 
-    private int convertTo24Hour(int hour12, boolean isAM) {
-        if (isAM) {
-            return (hour12 == 12) ? 0 : hour12;
-        } else {
-            return (hour12 == 12) ? 12 : hour12 + 12;
-        }
-    }
-
     private String formatTimeForDisplay(int hour, int minute, boolean isAM) {
         String minuteStr = (minute < 10) ? "0" + minute : String.valueOf(minute);
         String period = isAM ? "AM" : "PM";
@@ -163,5 +166,14 @@ public class AddMedicineActivity extends AppCompatActivity {
 
     private int generateUniqueRequestCode(String name, String time) {
         return (name + time + System.currentTimeMillis() + random.nextInt(1000)).hashCode();
+    }
+    private int convertTo24Hour(int hour12, boolean isAM) {
+        if (isAM) {
+            // AM: 12 AM = 0, 1-11 AM = 1-11
+            return (hour12 == 12) ? 0 : hour12;
+        } else {
+            // PM: 12 PM = 12, 1-11 PM = 13-23
+            return (hour12 == 12) ? 12 : hour12 + 12;
+        }
     }
 }
