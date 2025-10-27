@@ -1,9 +1,14 @@
 package com.example.medicinereminderapp;
 
+import android.app.AlarmManager;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import android.app.AlertDialog;
 import java.util.Random;
 import android.util.Log;
 
@@ -40,19 +45,16 @@ public class AddMedicineActivity extends AppCompatActivity {
         saveBtn = findViewById(R.id.saveBtn);
         ampmBtn = findViewById(R.id.ampmBtn);
 
-        // Initialize spinners
         repeatSpinner = findViewById(R.id.repeatSpinner);
         durationSpinner = findViewById(R.id.durationSpinner);
     }
 
     private void setupSpinners() {
-        // Repeat options
         String[] repeatOptions = {"Daily", "Weekly", "Monthly"};
         ArrayAdapter<String> repeatAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, repeatOptions);
         repeatAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         repeatSpinner.setAdapter(repeatAdapter);
 
-        // Duration options
         String[] durationOptions = {"1 week", "2 weeks", "1 month", "3 months", "Ongoing"};
         ArrayAdapter<String> durationAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, durationOptions);
         durationAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -68,11 +70,11 @@ public class AddMedicineActivity extends AppCompatActivity {
     }
 
     private void saveMedicine() {
-        String name = nameInput.getText().toString();
-        String dose = doseInput.getText().toString();
-        String hourStr = hourInput.getText().toString();
-        String minuteStr = minuteInput.getText().toString();
-        String notes = notesInput.getText().toString();
+        String name = nameInput.getText().toString().trim();
+        String dose = doseInput.getText().toString().trim();
+        String hourStr = hourInput.getText().toString().trim();
+        String minuteStr = minuteInput.getText().toString().trim();
+        String notes = notesInput.getText().toString().trim();
 
         if (name.isEmpty() || dose.isEmpty() || hourStr.isEmpty() || minuteStr.isEmpty()) {
             Toast.makeText(this, "Please fill all required fields", Toast.LENGTH_SHORT).show();
@@ -83,54 +85,40 @@ public class AddMedicineActivity extends AppCompatActivity {
             int hour = Integer.parseInt(hourStr);
             int minute = Integer.parseInt(minuteStr);
 
-            // Validate hour (1-12 for 12-hour format)
             if (hour < 1 || hour > 12) {
                 Toast.makeText(this, "Please enter hour between 1-12", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            // Validate minute (0-59)
             if (minute < 0 || minute > 59) {
                 Toast.makeText(this, "Please enter minute between 00-59", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Get repeat type and duration
             String repeatType = repeatSpinner.getSelectedItem().toString();
             String duration = durationSpinner.getSelectedItem().toString();
 
-            // Convert to 24-hour format for alarm scheduling
             int hour24 = convertTo24Hour(hour, isAM);
 
-            // === DEBUG LOGGING ADDED HERE ===
             Log.d("AddMedicine", "User entered: " + hour + ":" + minute + " " + (isAM ? "AM" : "PM"));
             Log.d("AddMedicine", "Converted to 24h: " + hour24 + ":" + minute);
             Log.d("AddMedicine", "Repeat Type: " + repeatType + ", Duration: " + duration);
-            // === END DEBUG LOGGING ===
 
-            // Format time for display
             String displayTime = formatTimeForDisplay(hour, minute, isAM);
-
-            // Calculate end date based on duration
             long endDate = calculateEndDate(duration);
 
-            // Save to database using the enhanced method
             long medicineId = db.insertMedicineWithDetails(name, dose, displayTime, notes,
                     repeatType, "All", duration, endDate);
 
             if (medicineId != -1) {
-                // Schedule alarm using your existing AlarmScheduler
-                int reqCode = generateUniqueRequestCode(name, displayTime);
-
-                // === MORE DEBUG LOGGING ===
+                int reqCode = (int) medicineId; // stable requestCode using DB id
                 Log.d("AddMedicine", "Scheduling alarm with requestCode: " + reqCode);
                 Log.d("AddMedicine", "Calling AlarmScheduler with time: " + hour24 + ":" + minute);
-                // === END DEBUG LOGGING ===
 
-                // Use your existing schedule method
-                AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour24, minute);
+                AlarmScheduler.scheduleExactAlarm(this, reqCode, name, dose, notes, hour24, minute);
 
-                // Record the first dose in history
+                // Prompt user to allow exact alarms if needed
+                ensureExactAlarmsAllowed();
+
                 db.recordDoseHistory((int) medicineId, name, dose,
                         System.currentTimeMillis(), 0, "scheduled");
 
@@ -144,6 +132,7 @@ public class AddMedicineActivity extends AppCompatActivity {
             Toast.makeText(this, "Please enter valid numbers for time", Toast.LENGTH_SHORT).show();
         }
     }
+
     private long calculateEndDate(String duration) {
         long currentTime = System.currentTimeMillis();
         long millisInDay = 24 * 60 * 60 * 1000L;
@@ -153,7 +142,7 @@ public class AddMedicineActivity extends AppCompatActivity {
             case "2 weeks": return currentTime + (14 * millisInDay);
             case "1 month": return currentTime + (30 * millisInDay);
             case "3 months": return currentTime + (90 * millisInDay);
-            case "Ongoing": return currentTime + (365 * millisInDay); // 1 year as "ongoing"
+            case "Ongoing": return currentTime + (365 * millisInDay);
             default: return currentTime + (365 * millisInDay);
         }
     }
@@ -164,16 +153,38 @@ public class AddMedicineActivity extends AppCompatActivity {
         return hour + ":" + minuteStr + " " + period;
     }
 
-    private int generateUniqueRequestCode(String name, String time) {
-        return (name + time + System.currentTimeMillis() + random.nextInt(1000)).hashCode();
-    }
     private int convertTo24Hour(int hour12, boolean isAM) {
         if (isAM) {
-            // AM: 12 AM = 0, 1-11 AM = 1-11
             return (hour12 == 12) ? 0 : hour12;
         } else {
-            // PM: 12 PM = 12, 1-11 PM = 13-23
             return (hour12 == 12) ? 12 : hour12 + 12;
+        }
+    }
+
+    /**
+     * If exact alarms are not allowed on this device, ask the user to enable them.
+     * Call this from an Activity after scheduling the alarm (so user sees the dialog).
+     */
+    private void ensureExactAlarmsAllowed() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && !am.canScheduleExactAlarms()) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Allow exact alarms")
+                        .setMessage("To reliably notify you at the exact medicine time, please allow exact alarms for this app in system settings.")
+                        .setPositiveButton("Open settings", (dialog, which) -> {
+                            Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                            if (i.resolveActivity(getPackageManager()) != null) {
+                                startActivity(i);
+                            } else {
+                                Intent appSettings = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                appSettings.setData(android.net.Uri.fromParts("package", getPackageName(), null));
+                                startActivity(appSettings);
+                            }
+                        })
+                        .setNegativeButton("Not now", null)
+                        .show();
+            }
         }
     }
 }

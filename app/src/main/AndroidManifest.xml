@@ -2,18 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Android 13+ notifications -->
+    <!-- Runtime notification permission (Android 13+ must be requested at runtime) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Alarm/vibration -->
+    <!-- Vibration for alerts -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Re-schedule after reboot -->
+    <!-- Allow starting foreground services (required when calling startForeground()) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14+: scoped permission required when using mediaPlayback foreground service type -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Re-schedule alarms after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Android 12+ exact alarms -->
+    <!-- Allow scheduling exact alarms (Android 12+ may require user to allow exact alarms in settings) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- For older Android versions -->
+    <!-- Keep WAKE_LOCK for older devices if you need to keep CPU awake briefly -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -25,6 +28,7 @@
         android:theme="@style/Theme.Material3.DayNight.NoActionBar"
         tools:targetApi="31">
 
+        <!-- Main entry -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -34,36 +38,50 @@
             </intent-filter>
         </activity>
 
-        <!-- Full-screen alarm activity -->
+        <!-- Add medicine, list, etc -->
+        <activity android:name=".AddMedicineActivity" />
+        <activity android:name=".MedicineListActivity" />
+        <activity android:name=".EditMedicineActivity" />
+
+        <!-- Alarm Activity: lock screen + no action bar -->
         <activity
             android:name=".AlarmActivity"
+            android:exported="true"
             android:showOnLockScreen="true"
             android:turnScreenOn="true"
             android:showWhenLocked="true"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-            android:launchMode="singleTask"
-            android:exported="true" />
+            android:launchMode="singleTask" />
 
-        <activity android:name=".AddMedicineActivity" />
-        <activity android:name=".MedicineListActivity" />
-        <activity android:name=".EditMedicineActivity" />
+        <!-- Foreground service to play sound/vibrate -->
+        <service
+            android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
-        <!-- Alarm receiver -->
+        <!-- Receiver for snooze/done actions - app-internal, not exported -->
+        <receiver
+            android:name=".AlarmActionReceiver"
+            android:exported="false" />
+
+        <!-- Receiver for alarms - must be exported so AlarmManager can deliver -->
         <receiver
             android:name=".ReminderReceiver"
-            android:exported="false" />
+            android:exported="true" />
 
         <!-- Boot receiver for re-scheduling alarms -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
     </application>
+
 </manifest>
