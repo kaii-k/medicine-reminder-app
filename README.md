@@ -1,4 +1,5 @@
 # Medicine Reminder App
+![Uploading icon.png…]()
 
 An Android application to help users manage and track their medication schedules.
 
@@ -16,3 +17,4 @@ An Android application to help users manage and track their medication schedules
 1. Clone this repository
 2. Open in Android Studio
 3. Build and run on device/emulator
+  
