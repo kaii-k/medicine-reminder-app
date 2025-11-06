@@ -9,9 +9,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
-
 import androidx.core.app.NotificationCompat;
 
+/**
+ * ReminderReceiver: shows a high-priority notification with a fullScreenIntent
+ * so AlarmActivity can be launched even when the app is backgrounded/locked.
+ */
 public class ReminderReceiver extends BroadcastReceiver {
     private static final String TAG = "ReminderReceiver";
 
@@ -24,8 +27,6 @@ public class ReminderReceiver extends BroadcastReceiver {
     // Notification / alarm constants (keep in sync with AlarmActionReceiver)
     private static final int NOTIF_BASE = 2000;
     private static final int MISSED_OFFSET = 200000;
-    // SNOOZE_OFFSET is used only when scheduling snooze pending intents from AlarmActionReceiver,
-    // but it's useful to define here too
     public static final int SNOOZE_OFFSET = 100000;
 
     // Missed-check delay (minutes) after scheduled time
@@ -61,7 +62,7 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         PendingIntent donePI = PendingIntent.getBroadcast(
                 context,
-                requestCode, // unique per reminder action
+                requestCode,
                 doneIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
@@ -81,17 +82,37 @@ public class ReminderReceiver extends BroadcastReceiver {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // 3) Build the notification
+        // 3) Build the full-screen intent to launch AlarmActivity
+        Intent alarmActivityIntent = new Intent(context, AlarmActivity.class);
+        alarmActivityIntent.putExtra(EXTRA_REQUEST_CODE, requestCode);
+        alarmActivityIntent.putExtra(EXTRA_MED_ID, medId);
+        alarmActivityIntent.putExtra(EXTRA_MED_NAME, medName);
+        alarmActivityIntent.putExtra(EXTRA_DOSE, dose);
+        alarmActivityIntent.putExtra(EXTRA_SCHEDULED_TIME, scheduledTime);
+
+        // Required flags: allow starting activity from receiver and reuse if already open
+        alarmActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
+                context,
+                1_000_000 + Math.max(0, requestCode), // unique id for activity pending intent
+                alarmActivityIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        // 4) Build the notification (HIGH priority + fullScreenIntent)
         NotificationCompat.Builder nb = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info) // replace with your app icon if available
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // change to your icon if you prefer
                 .setContentTitle(medName != null ? medName : "Medicine reminder")
                 .setContentText(dose != null ? dose : "Time to take your medicine")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setAutoCancel(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Done", donePI)
-                .addAction(android.R.drawable.ic_menu_recent_history, "Snooze", snoozePI);
+                .addAction(android.R.drawable.ic_menu_recent_history, "Snooze", snoozePI)
+                .setFullScreenIntent(fullScreenPendingIntent, true); // <- shows activity on top for alarms
 
-        // 4) Post notification
+        // 5) Post notification
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         int notifId = NOTIF_BASE + (requestCode >= 0 ? requestCode : 0);
         if (nm != null) {
@@ -102,7 +123,7 @@ public class ReminderReceiver extends BroadcastReceiver {
             }
         }
 
-        // 5) Schedule missed-check alarm (fires after DEFAULT_MISSED_DELAY_MIN minutes)
+        // 6) Schedule missed-check alarm (fires after DEFAULT_MISSED_DELAY_MIN minutes)
         scheduleMissedCheck(context, requestCode, medId, medName, dose, scheduledTime, DEFAULT_MISSED_DELAY_MIN);
     }
 
