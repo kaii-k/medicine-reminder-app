@@ -15,114 +15,110 @@ public class AlarmScheduler {
     private static final String TAG = "AlarmScheduler";
 
     /**
-     * Schedule ONE exact alarm for the given hour:minute.
-     * Attaches hour/minute extras so ReminderReceiver can reschedule for next day.
+     * Schedule ONE exact alarm for the given hour:minute using a stable numeric requestCode (medicineId).
      *
-     * requestCode must be unique per reminder (use DB id or hash).
+     * @param context      app context
+     * @param medicineId   stable numeric id (use DB row id)
+     * @param medicineName visible label in notification
+     * @param dose         dose text
+     * @param notes        extra notes
+     * @param hour24       hour of day (0-23)
+     * @param minute       minute (0-59)
      */
     public static void scheduleExactAlarm(Context context,
-                                          int requestCode,
+                                          int medicineId,
                                           String medicineName,
                                           String dose,
                                           String notes,
                                           int hour24,
                                           int minute) {
-        AlarmManager alarmManager = null;
-        try {
-            alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            Log.e(TAG, "AlarmManager is null. Cannot schedule alarm.");
+            return;
+        }
 
-            Intent intent = new Intent(context, ReminderReceiver.class);
-            intent.putExtra("medicineName", medicineName);
-            intent.putExtra("dose", dose);
-            intent.putExtra("notes", notes);
-            intent.putExtra("requestCode", requestCode);
-            intent.putExtra("hour24", hour24);
-            intent.putExtra("minute", minute);
+        // Use medicineId as stable requestCode
+        int requestCode = medicineId;
 
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
+        // Build the intent using the same extras keys ReminderReceiver expects
+        Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.putExtra(ReminderReceiver.EXTRA_REQUEST_CODE, requestCode);
+        intent.putExtra(ReminderReceiver.EXTRA_MED_ID, medicineId);
+        intent.putExtra(ReminderReceiver.EXTRA_MED_NAME, medicineName);
+        intent.putExtra(ReminderReceiver.EXTRA_DOSE, dose);
+        // Put scheduled time later after we compute it
+        // Also include hour/minute if you want ReminderReceiver to reschedule next day
+        intent.putExtra("hour24", hour24);
+        intent.putExtra("minute", minute);
 
-            Calendar calendar = Calendar.getInstance();
-            calendar.set(Calendar.HOUR_OF_DAY, hour24);
-            calendar.set(Calendar.MINUTE, minute);
-            calendar.set(Calendar.SECOND, 0);
-            calendar.set(Calendar.MILLISECOND, 0);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
 
-            long alarmTime = calendar.getTimeInMillis();
-            long now = System.currentTimeMillis();
-            if (alarmTime <= now) {
-                calendar.add(Calendar.DAY_OF_YEAR, 1);
-                alarmTime = calendar.getTimeInMillis();
-            }
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, hour24);
+        calendar.set(Calendar.MINUTE, minute);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
 
-            Log.d(TAG, "Scheduling alarm (" + requestCode + ") for: " + calendar.getTime());
+        long alarmTime = calendar.getTimeInMillis();
+        long now = System.currentTimeMillis();
+        if (alarmTime <= now) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1);
+            alarmTime = calendar.getTimeInMillis();
+        }
 
-            if (alarmManager == null) {
-                Log.e(TAG, "AlarmManager is null. Cannot schedule alarm.");
-                return;
-            }
+        Log.d(TAG, "Scheduling alarm (medicineId=" + medicineId + ") for: " + calendar.getTime());
 
-            // API 31+ : check if exact alarms allowed
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    if (!alarmManager.canScheduleExactAlarms()) {
-                        Log.w(TAG, "Exact alarms not allowed. Scheduling fallback inexact alarm.");
-                        // Fallback to inexact alarm (may be delayed)
-                        try {
-                            alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                            Log.d(TAG, "Fallback inexact alarm scheduled (may be delayed).");
-                        } catch (SecurityException se) {
-                            Log.e(TAG, "SecurityException scheduling fallback inexact alarm: " + se.getMessage(), se);
-                        }
-                        return;
-                    }
-                } catch (SecurityException se) {
-                    Log.e(TAG, "SecurityException checking canScheduleExactAlarms(): " + se.getMessage(), se);
-                    // Attempt fallback inexact scheduling
+        // For API 31+ check if exact alarms allowed. Caller should prompt user if needed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                if (!alarmManager.canScheduleExactAlarms()) {
+                    Log.w(TAG, "Exact alarms not allowed on this device for our app. Scheduling fallback inexact alarm.");
                     try {
                         alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                        Log.d(TAG, "Fallback inexact alarm scheduled after exception.");
-                    } catch (Exception e) {
-                        Log.e(TAG, "Failed fallback scheduling after exception: " + e.getMessage(), e);
+                        Log.d(TAG, "Fallback inexact alarm scheduled (may be delayed).");
+                    } catch (SecurityException se) {
+                        Log.e(TAG, "SecurityException scheduling fallback inexact alarm: " + se.getMessage(), se);
                     }
                     return;
                 }
-            }
-
-            // If we reach here, exact alarms are allowed or API < 31
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                    Log.d(TAG, "Exact alarm scheduled with setExactAndAllowWhileIdle.");
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                    Log.d(TAG, "Exact alarm scheduled with setExact.");
-                } else {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                    Log.d(TAG, "Alarm scheduled with set (legacy).");
-                }
             } catch (SecurityException se) {
-                Log.e(TAG, "SecurityException scheduling exact alarm: " + se.getMessage(), se);
-                // Try fallback to inexact
-                try {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
-                    Log.d(TAG, "Fallback inexact alarm scheduled after SecurityException.");
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed fallback scheduling after SecurityException: " + e.getMessage(), e);
-                }
+                Log.e(TAG, "SecurityException calling canScheduleExactAlarms(): " + se.getMessage(), se);
+                // fall through to fallback scheduling below
             }
+        }
 
-        } catch (Exception e) {
-            Log.e(TAG, "Unexpected error scheduling alarm: " + e.getMessage(), e);
+        // Use exact scheduling API where available
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                Log.d(TAG, "Exact alarm scheduled with setExactAndAllowWhileIdle.");
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                Log.d(TAG, "Exact alarm scheduled with setExact.");
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                Log.d(TAG, "Alarm scheduled with set (legacy).");
+            }
+        } catch (SecurityException se) {
+            Log.e(TAG, "SecurityException scheduling exact alarm: " + se.getMessage(), se);
+            // fallback to inexact
+            try {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                Log.d(TAG, "Fallback inexact alarm scheduled after SecurityException.");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed fallback scheduling after SecurityException: " + e.getMessage(), e);
+            }
         }
     }
 
     /**
-     * Backwards-compatible wrapper for older code that called scheduleDailyExact(...)
+     * Convenience wrapper used by previous code
      */
     public static void scheduleDailyExact(Context context,
                                           int requestCode,
@@ -131,6 +127,7 @@ public class AlarmScheduler {
                                           String notes,
                                           int hour24,
                                           int minute) {
+        // treat requestCode as medicineId here for backward compatibility
         scheduleExactAlarm(context, requestCode, medicineName, dose, notes, hour24, minute);
     }
 
@@ -157,7 +154,7 @@ public class AlarmScheduler {
     }
 
     /**
-     * Simple helper to create a consistent unique requestCode for a reminder.
+     * Make a stable positive request code (if needed).
      */
     public static int makeRequestCode(String medicineName, int hour24, int minute) {
         return Math.abs(Objects.hash(medicineName, hour24, minute));

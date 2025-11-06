@@ -1,31 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.medicinereminderapp">
 
-    <!-- Runtime notification permission (Android 13+ must be requested at runtime) -->
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Vibration for alerts -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Allow starting foreground services (required when calling startForeground()) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+: scoped permission required when using mediaPlayback foreground service type -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Re-schedule alarms after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Allow scheduling exact alarms (Android 12+ may require user to allow exact alarms in settings) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- Keep WAKE_LOCK for older devices if you need to keep CPU awake briefly -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Material3.DayNight.NoActionBar"
+        android:theme="@style/Theme.MedicineReminderApp"
         tools:targetApi="31">
 
         <!-- Main entry -->
@@ -38,10 +32,15 @@
             </intent-filter>
         </activity>
 
-        <!-- Add medicine, list, etc -->
+        <!-- Report (report screen) -->
+        <activity
+            android:name=".ReportActivity"
+            android:exported="false" />
+
+        <!-- Add / Edit / List screens -->
         <activity android:name=".AddMedicineActivity" />
-        <activity android:name=".MedicineListActivity" />
         <activity android:name=".EditMedicineActivity" />
+        <activity android:name=".MedicineListActivity" />
 
         <!-- Alarm Activity: lock screen + no action bar -->
         <activity
@@ -60,12 +59,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-        <!-- Receiver for snooze/done actions - app-internal, not exported -->
+        <!-- Receiver for snooze/done actions - app-internal -->
         <receiver
             android:name=".AlarmActionReceiver"
             android:exported="false" />
 
-        <!-- Receiver for alarms - must be exported so AlarmManager can deliver -->
+        <!-- Receiver for alarms - delivered by AlarmManager -->
         <receiver
             android:name=".ReminderReceiver"
             android:exported="true" />

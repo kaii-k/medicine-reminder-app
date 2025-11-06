@@ -1,7 +1,6 @@
 package com.example.medicinereminderapp;
 
 import android.app.AlarmManager;
-import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -13,181 +12,197 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
-import java.util.Calendar;
-
 public class ReminderReceiver extends BroadcastReceiver {
     private static final String TAG = "ReminderReceiver";
-    private static final String CHANNEL_ID = "med_reminder_channel";
+
+    public static final String EXTRA_REQUEST_CODE = "requestCode";
+    public static final String EXTRA_MED_ID = "medicineId";
+    public static final String EXTRA_MED_NAME = "medicineName";
+    public static final String EXTRA_DOSE = "dose";
+    public static final String EXTRA_SCHEDULED_TIME = "scheduledTime";
+
+    // Notification / alarm constants (keep in sync with AlarmActionReceiver)
     private static final int NOTIF_BASE = 2000;
-
-    // Offsets for extra pending intents so they don't collide with the main alarm pending intent
-    private static final int SNOOZE_OFFSET = 100000;
     private static final int MISSED_OFFSET = 200000;
+    // SNOOZE_OFFSET is used only when scheduling snooze pending intents from AlarmActionReceiver,
+    // but it's useful to define here too
+    public static final int SNOOZE_OFFSET = 100000;
 
-    // Snooze window in minutes (user-friendly default)
-    private static final int SNOOZE_MINUTES = 10;
+    // Missed-check delay (minutes) after scheduled time
+    private static final int DEFAULT_MISSED_DELAY_MIN = 5;
 
-    // How long to wait before marking as missed (minutes)
-    private static final int MISSED_MINUTES = 30;
+    // Notification channel
+    private static final String CHANNEL_ID = "med_reminder_channel";
+    private static final String CHANNEL_NAME = "Medicine reminders";
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "Alarm received in ReminderReceiver");
+        if (intent == null) return;
 
-        // --- Read extras (first thing) ---
-        String name = intent.getStringExtra("medicineName");
-        String dose = intent.getStringExtra("dose");
-        String notes = intent.getStringExtra("notes");
-        int requestCode = intent.getIntExtra("requestCode", 0);
-        int hour = intent.getIntExtra("hour24", -1);
-        int minute = intent.getIntExtra("minute", -1);
+        int requestCode = intent.getIntExtra(EXTRA_REQUEST_CODE, -1);
+        int medId = intent.getIntExtra(EXTRA_MED_ID, -1);
+        String medName = intent.getStringExtra(EXTRA_MED_NAME);
+        String dose = intent.getStringExtra(EXTRA_DOSE);
+        long scheduledTime = intent.getLongExtra(EXTRA_SCHEDULED_TIME, System.currentTimeMillis());
 
-        if (name == null) name = "Medicine";
-        Log.d(TAG, "Reminder for: " + name + " (reqCode=" + requestCode + ")");
+        Log.d(TAG, "onReceive - reqCode=" + requestCode + " medId=" + medId + " medName=" + medName + " sched=" + scheduledTime);
 
-        // Ensure notification channel exists (Android O+)
-        createNotificationChannel(context);
+        // 1) Create notification channel (safe to call on every run)
+        createNotificationChannelIfNeeded(context);
 
-        // Intent to open AlarmActivity when user taps the notification (or full-screen intent triggers)
-        Intent alarmActivityIntent = new Intent(context, AlarmActivity.class);
-        alarmActivityIntent.putExtra("medicineName", name);
-        alarmActivityIntent.putExtra("dose", dose);
-        alarmActivityIntent.putExtra("notes", notes);
-        alarmActivityIntent.putExtra("requestCode", requestCode);
-        alarmActivityIntent.putExtra("hour24", hour);
-        alarmActivityIntent.putExtra("minute", minute);
-        alarmActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-        PendingIntent contentPendingIntent = PendingIntent.getActivity(
-                context,
-                requestCode + 5000,
-                alarmActivityIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        // Action: DONE -> handled by AlarmActionReceiver
+        // 2) Build PendingIntents for actions: DONE and SNOOZE
         Intent doneIntent = new Intent(context, AlarmActionReceiver.class);
         doneIntent.setAction(AlarmActionReceiver.ACTION_DONE);
         doneIntent.putExtra("requestCode", requestCode);
-        doneIntent.putExtra("medicineName", name);
+        doneIntent.putExtra("medicineId", medId);
+        doneIntent.putExtra("medicineName", medName);
         doneIntent.putExtra("dose", dose);
+        doneIntent.putExtra("scheduledTime", scheduledTime);
 
         PendingIntent donePI = PendingIntent.getBroadcast(
                 context,
-                requestCode + 1,
+                requestCode, // unique per reminder action
                 doneIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // Action: SNOOZE -> handled by AlarmActionReceiver
         Intent snoozeIntent = new Intent(context, AlarmActionReceiver.class);
         snoozeIntent.setAction(AlarmActionReceiver.ACTION_SNOOZE);
         snoozeIntent.putExtra("requestCode", requestCode);
-        snoozeIntent.putExtra("medicineName", name);
+        snoozeIntent.putExtra("medicineId", medId);
+        snoozeIntent.putExtra("medicineName", medName);
         snoozeIntent.putExtra("dose", dose);
-        snoozeIntent.putExtra("hour24", hour);
-        snoozeIntent.putExtra("minute", minute);
+        snoozeIntent.putExtra("scheduledTime", scheduledTime);
 
         PendingIntent snoozePI = PendingIntent.getBroadcast(
                 context,
-                requestCode + 2,
+                requestCode + SNOOZE_OFFSET,
                 snoozeIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // Build notification with full-screen intent
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("Time to take: " + name)
-                .setContentText(dose == null ? "Take your medicine now" : dose)
+        // 3) Build the notification
+        NotificationCompat.Builder nb = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info) // replace with your app icon if available
+                .setContentTitle(medName != null ? medName : "Medicine reminder")
+                .setContentText(dose != null ? dose : "Time to take your medicine")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setAutoCancel(true)
-                .setContentIntent(contentPendingIntent)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Done", donePI)
-                .addAction(android.R.drawable.ic_lock_idle_alarm, "Snooze", snoozePI)
-                .setFullScreenIntent(contentPendingIntent, true)
-                .setDefaults(Notification.DEFAULT_ALL);
+                .addAction(android.R.drawable.ic_menu_recent_history, "Snooze", snoozePI);
 
+        // 4) Post notification
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        int notifId = NOTIF_BASE + (requestCode >= 0 ? requestCode : 0);
         if (nm != null) {
             try {
-                nm.notify(NOTIF_BASE + requestCode, builder.build());
-                Log.d(TAG, "Notification posted for reqCode=" + requestCode);
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to post notification: " + e.getMessage(), e);
+                nm.notify(notifId, nb.build());
+            } catch (SecurityException se) {
+                Log.e(TAG, "Notification error: " + se.getMessage(), se);
             }
-        } else {
-            Log.e(TAG, "NotificationManager is null");
         }
 
-        // Try to start AlarmActivity directly as a fallback to ensure UI appears
-        try {
-            Intent startIntent = new Intent(context, AlarmActivity.class);
-            startIntent.putExtra("name", name);
-            startIntent.putExtra("dose", dose);
-            startIntent.putExtra("notes", notes);
-            startIntent.putExtra("requestCode", requestCode);
-            startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            context.startActivity(startIntent);
-            Log.d(TAG, "Started AlarmActivity manually from ReminderReceiver");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start AlarmActivity from receiver: " + e.getMessage(), e);
-        }
-
-        // Schedule a missed-check in MISSED_MINUTES minutes (so if user does nothing we mark missed)
-        scheduleMissCheck(context, requestCode, name, MISSED_MINUTES);
-
-        // Reschedule next day's regular alarm (if hour/min were provided)
-        try {
-            if (hour >= 0 && minute >= 0) {
-                AlarmScheduler.scheduleExactAlarm(context, requestCode, name, dose, notes, hour, minute);
-                Log.d(TAG, "Rescheduled next day's alarm for " + name + " at " + hour + ":" + minute);
-            } else {
-                Log.d(TAG, "Hour/minute not provided; skip auto-reschedule.");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error while rescheduling next alarm: " + e.getMessage(), e);
-        }
+        // 5) Schedule missed-check alarm (fires after DEFAULT_MISSED_DELAY_MIN minutes)
+        scheduleMissedCheck(context, requestCode, medId, medName, dose, scheduledTime, DEFAULT_MISSED_DELAY_MIN);
     }
 
-    private void scheduleMissCheck(Context ctx, int requestCode, String medName, int minutesLater) {
-        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
-        Intent missIntent = new Intent(ctx, AlarmActionReceiver.class);
-        missIntent.setAction(AlarmActionReceiver.ACTION_MISSED_CHECK);
-        missIntent.putExtra("requestCode", requestCode);
-        missIntent.putExtra("medicineName", medName);
-
-        PendingIntent pi = PendingIntent.getBroadcast(ctx, requestCode + MISSED_OFFSET, missIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        long triggerAt = System.currentTimeMillis() + minutesLater * 60L * 1000L;
-        try {
-            if (am != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-                } else {
-                    am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-                }
-                Log.d(TAG, "Miss-check scheduled in " + minutesLater + " minutes for reqCode=" + requestCode);
-            } else {
-                Log.e(TAG, "AlarmManager is null - cannot schedule miss-check");
-            }
-        } catch (SecurityException se) {
-            Log.e(TAG, "SecurityException scheduling miss-check: " + se.getMessage(), se);
-        }
-    }
-
-    private void createNotificationChannel(Context ctx) {
+    private void createNotificationChannelIfNeeded(Context ctx) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm == null) return;
-            NotificationChannel channel = nm.getNotificationChannel(CHANNEL_ID);
-            if (channel == null) {
-                channel = new NotificationChannel(CHANNEL_ID, "Medicine Reminders", NotificationManager.IMPORTANCE_HIGH);
-                channel.setDescription("Reminder alerts for medicines");
-                nm.createNotificationChannel(channel);
+            NotificationChannel ch = nm.getNotificationChannel(CHANNEL_ID);
+            if (ch == null) {
+                ch = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+                ch.setDescription("Channel for medicine reminders");
+                nm.createNotificationChannel(ch);
             }
+        }
+    }
+
+    /**
+     * Schedule a missed-check one-shot alarm that triggers AlarmActionReceiver.ACTION_MISSED_CHECK.
+     * The PendingIntent uses requestCode + MISSED_OFFSET so AlarmActionReceiver can cancel it when needed.
+     */
+    private void scheduleMissedCheck(Context ctx, int requestCode, int medId, String medName, String dose,
+                                     long scheduledTime, int minutesAfter) {
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) {
+            Log.e(TAG, "AlarmManager null - cannot schedule missed-check");
+            return;
+        }
+
+        long triggerAt = System.currentTimeMillis() + minutesAfter * 60L * 1000L;
+        // If you prefer to schedule relative to scheduledTime: uncomment next line and comment previous
+        // long triggerAt = scheduledTime + minutesAfter * 60L * 1000L;
+
+        Intent missIntent = new Intent(ctx, AlarmActionReceiver.class);
+        missIntent.setAction(AlarmActionReceiver.ACTION_MISSED_CHECK);
+        missIntent.putExtra("requestCode", requestCode);
+        missIntent.putExtra("medicineId", medId);
+        missIntent.putExtra("medicineName", medName);
+        missIntent.putExtra("dose", dose);
+        missIntent.putExtra("scheduledTime", scheduledTime);
+
+        PendingIntent missPI = PendingIntent.getBroadcast(
+                ctx,
+                requestCode + MISSED_OFFSET,
+                missIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
+            } else {
+                am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
+            }
+            Log.d(TAG, "Scheduled missed-check: reqCode=" + requestCode + " triggerAt=" + triggerAt);
+        } catch (SecurityException se) {
+            Log.e(TAG, "SecurityException scheduling missed-check: " + se.getMessage(), se);
+        }
+    }
+
+    /**
+     * Public helper to schedule an AlarmManager alarm that will be received by this receiver.
+     *
+     * @param ctx            Context
+     * @param requestCode    Unique request code for PendingIntent (used to cancel/update)
+     * @param medicineId     Business ID for the medicine (can be same as requestCode)
+     * @param triggerAtMs    Epoch millis when alarm should fire
+     * @param medicineName   Name to show in notification
+     * @param dose           Dose text to show in notification
+     */
+    public static void scheduleReminder(Context ctx, int requestCode, int medicineId, long triggerAtMs,
+                                        String medicineName, String dose) {
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) {
+            Log.e(TAG, "AlarmManager null - cannot schedule reminder");
+            return;
+        }
+
+        Intent i = new Intent(ctx, ReminderReceiver.class);
+        i.putExtra(EXTRA_REQUEST_CODE, requestCode);
+        i.putExtra(EXTRA_MED_ID, medicineId);
+        i.putExtra(EXTRA_MED_NAME, medicineName);
+        i.putExtra(EXTRA_DOSE, dose);
+        i.putExtra(EXTRA_SCHEDULED_TIME, triggerAtMs);
+
+        PendingIntent pi = PendingIntent.getBroadcast(
+                ctx,
+                requestCode,
+                i,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pi);
+            } else {
+                am.setExact(AlarmManager.RTC_WAKEUP, triggerAtMs, pi);
+            }
+            Log.d(TAG, "Scheduled reminder: reqCode=" + requestCode + " at " + triggerAtMs);
+        } catch (SecurityException se) {
+            Log.e(TAG, "SecurityException scheduling reminder: " + se.getMessage(), se);
         }
     }
 }

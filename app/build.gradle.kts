@@ -61,4 +61,8 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // --- Added libraries for reporting UI (pie chart + live update) ---
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }

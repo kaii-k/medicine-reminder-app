@@ -29,9 +29,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Reports Button
+        // Reports Button
         reportsBtn.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, ReportsActivity.class);
+            Intent intent = new Intent(MainActivity.this, ReportActivity.class);
             startActivity(intent);
         });
+
     }
 }

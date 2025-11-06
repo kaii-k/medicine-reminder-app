@@ -160,6 +160,88 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cursor.close();
         return report;
     }
+    // Check if any medicine exists (useful to show/hide Report button)
+    public boolean hasMedicines() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_MEDICINES, null);
+        boolean has = false;
+        if (cursor.moveToFirst()) {
+            has = cursor.getInt(0) > 0;
+        }
+        cursor.close();
+        return has;
+    }
+
+    /**
+     * Return last 7 days status for a medicine (oldest -> newest).
+     * - Boolean.TRUE  -> at least one 'taken' record that day
+     * - Boolean.FALSE -> at least one scheduled dose that day but none taken (so missed)
+     * - null          -> no scheduled dose recorded that day
+     *
+     * Uses scheduled_time column (milliseconds since epoch).
+     */
+    public List<Boolean> getLast7DaysTakenStatus(int medicineId) {
+        List<Boolean> result = new ArrayList<>(7);
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        // Start from 6 days ago (oldest) to today (newest)
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        // normalize to start of today (midnight)
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+
+        // loop days: i = 6 -> 0 gives oldest -> newest
+        for (int daysBack = 6; daysBack >= 0; daysBack--) {
+            java.util.Calendar dayStart = (java.util.Calendar) cal.clone();
+            dayStart.add(java.util.Calendar.DAY_OF_YEAR, -daysBack);
+            long startTs = dayStart.getTimeInMillis();
+
+            java.util.Calendar dayEnd = (java.util.Calendar) dayStart.clone();
+            dayEnd.add(java.util.Calendar.DAY_OF_YEAR, 1);
+            long endTs = dayEnd.getTimeInMillis() - 1;
+
+            // 1) Check if there is any 'taken' record for that day
+            String takenQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
+                    " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ? AND status = 'taken'";
+            Cursor cTaken = db.rawQuery(takenQuery, new String[]{
+                    String.valueOf(medicineId),
+                    String.valueOf(startTs),
+                    String.valueOf(endTs)
+            });
+            int takenCount = 0;
+            if (cTaken.moveToFirst()) takenCount = cTaken.getInt(0);
+            cTaken.close();
+
+            if (takenCount > 0) {
+                result.add(Boolean.TRUE);
+                continue;
+            }
+
+            // 2) If no taken, check if there was any scheduled dose that day
+            String anyQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
+                    " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ?";
+            Cursor cAny = db.rawQuery(anyQuery, new String[]{
+                    String.valueOf(medicineId),
+                    String.valueOf(startTs),
+                    String.valueOf(endTs)
+            });
+            int anyCount = 0;
+            if (cAny.moveToFirst()) anyCount = cAny.getInt(0);
+            cAny.close();
+
+            if (anyCount > 0) {
+                // there was a scheduled dose, but none taken -> missed
+                result.add(Boolean.FALSE);
+            } else {
+                // no scheduled dose recorded for this day
+                result.add(null);
+            }
+        }
+
+        return result;
+    }
 
     // Get all reports for doctor view
     public List<MedicineReport> getAllMedicineReports() {
@@ -239,4 +321,39 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
         return result > 0;
     }
+    // inside DatabaseHelper class
+
+    // small DTO for rescheduling
+    public static class ScheduledAlarm {
+        public int requestCode;
+        public int medicineId;
+        public long triggerAtMs;
+        public String medicineName;
+        public String dose;
+    }
+
+    // Example: return all future scheduled alarms saved in medicines table
+    public List<ScheduledAlarm> getAllScheduledAlarms() {
+        List<ScheduledAlarm> list = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        // Adjust columns according to your schema: example assumes you save next_trigger (millis) and requestCode
+        String q = "SELECT id, name, dose, end_date, time /* replace with your trigger/time column */ FROM " + TABLE_MEDICINES;
+        Cursor c = db.rawQuery(q, null);
+        while (c.moveToNext()) {
+            // You'll need to compute next trigger time from your saved schedule data.
+            // This is placeholder code — adapt to how you store schedule/time.
+            ScheduledAlarm s = new ScheduledAlarm();
+            s.medicineId = c.getInt(0);
+            s.medicineName = c.getString(1);
+            s.dose = c.getString(2);
+            s.requestCode = c.getInt(0); // use medicine id as requestCode if you do so
+            // compute triggerAtMs from your columns (time + date / repeat rules)
+            s.triggerAtMs = /* compute next trigger millis for this medicine */ System.currentTimeMillis();
+            list.add(s);
+        }
+        c.close();
+        return list;
+    }
+
 }
