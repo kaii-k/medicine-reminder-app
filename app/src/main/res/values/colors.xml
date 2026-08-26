@@ -7,5 +7,21 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="red">#FFFF0000</color> <!-- ADD THIS LINE -->
+    <color name="red">#FFFF0000</color>
+
+    <!-- Theme-aware colors: this file is the light palette. The night
+         variant (values-night/colors.xml) overrides the same names, so
+         anything referencing these automatically follows system dark mode. -->
+    <color name="window_background">#FFFFFF</color>
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#4D4D4D</color>
+    <color name="text_hint">#8A8A8A</color>
+    <color name="card_background">#F5F5F5</color>
+    <color name="divider">#E0E0E0</color>
+
+    <!-- Adherence calendar colors (kept consistent across themes so
+         taken/missed always reads the same regardless of dark mode) -->
+    <color name="dose_taken">#4CAF50</color>
+    <color name="dose_missed">#F44336</color>
+    <color name="dose_none">#BDBDBD</color>
 </resources>

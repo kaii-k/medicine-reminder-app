@@ -1,12 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- App theme - AppCompat descendant (used with AppCompatActivity) -->
+    <!-- App theme - AppCompat descendant (used with AppCompatActivity).
+         Every color below is a reference into colors.xml, which has a
+         values-night variant - so the whole app follows the system
+         light/dark setting automatically, and reverses when the user
+         flips it back. -->
     <style name="Theme.MedicineReminderApp" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <!-- Basic attributes you can customize -->
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:textColor">@android:color/black</item>
-        <!-- If you want Material components later, migrate carefully; for now AppCompat keeps AppCompatActivity happy -->
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorBackground">@color/window_background</item>
+
+        <!-- Default text color for plain TextViews/labels -->
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+
+        <!-- EditText text/cursor/hint color - this is what was making
+             typed input invisible: without it, EditText fell back to a
+             color that didn't track the app's fixed white background. -->
+        <item name="android:editTextColor">@color/text_primary</item>
+        <item name="colorControlNormal">@color/text_secondary</item>
+        <item name="colorControlActivated">@color/teal_700</item>
     </style>
 
 </resources>

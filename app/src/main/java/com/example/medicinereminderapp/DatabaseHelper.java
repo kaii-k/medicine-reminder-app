@@ -181,34 +181,45 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Uses scheduled_time column (milliseconds since epoch).
      */
     public List<Boolean> getLast7DaysTakenStatus(int medicineId) {
-        List<Boolean> result = new ArrayList<>(7);
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        // Start from 6 days ago (oldest) to today (newest)
         java.util.Calendar cal = java.util.Calendar.getInstance();
-        // normalize to start of today (midnight)
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
         cal.set(java.util.Calendar.MINUTE, 0);
         cal.set(java.util.Calendar.SECOND, 0);
         cal.set(java.util.Calendar.MILLISECOND, 0);
+        long todayStart = cal.getTimeInMillis();
 
-        // loop days: i = 6 -> 0 gives oldest -> newest
-        for (int daysBack = 6; daysBack >= 0; daysBack--) {
-            java.util.Calendar dayStart = (java.util.Calendar) cal.clone();
-            dayStart.add(java.util.Calendar.DAY_OF_YEAR, -daysBack);
-            long startTs = dayStart.getTimeInMillis();
+        java.util.Calendar sixDaysAgo = (java.util.Calendar) cal.clone();
+        sixDaysAgo.add(java.util.Calendar.DAY_OF_YEAR, -6);
 
-            java.util.Calendar dayEnd = (java.util.Calendar) dayStart.clone();
+        return getDailyTakenStatus(medicineId, sixDaysAgo.getTimeInMillis(), todayStart);
+    }
+
+    /**
+     * Per-day adherence status for a medicine across [startOfFirstDay, startOfLastDay]
+     * (both are day-start timestamps, oldest -> newest, inclusive).
+     * - Boolean.TRUE  -> at least one 'taken' record that day
+     * - Boolean.FALSE -> at least one scheduled dose that day but none taken (so missed)
+     * - null          -> no scheduled dose recorded that day
+     *
+     * Uses scheduled_time column (milliseconds since epoch).
+     */
+    public List<Boolean> getDailyTakenStatus(int medicineId, long startOfFirstDay, long startOfLastDay) {
+        List<Boolean> result = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(startOfFirstDay);
+
+        while (cal.getTimeInMillis() <= startOfLastDay) {
+            long startTs = cal.getTimeInMillis();
+            java.util.Calendar dayEnd = (java.util.Calendar) cal.clone();
             dayEnd.add(java.util.Calendar.DAY_OF_YEAR, 1);
             long endTs = dayEnd.getTimeInMillis() - 1;
 
-            // 1) Check if there is any 'taken' record for that day
             String takenQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
                     " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ? AND status = 'taken'";
             Cursor cTaken = db.rawQuery(takenQuery, new String[]{
-                    String.valueOf(medicineId),
-                    String.valueOf(startTs),
-                    String.valueOf(endTs)
+                    String.valueOf(medicineId), String.valueOf(startTs), String.valueOf(endTs)
             });
             int takenCount = 0;
             if (cTaken.moveToFirst()) takenCount = cTaken.getInt(0);
@@ -216,31 +227,99 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
             if (takenCount > 0) {
                 result.add(Boolean.TRUE);
-                continue;
-            }
-
-            // 2) If no taken, check if there was any scheduled dose that day
-            String anyQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
-                    " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ?";
-            Cursor cAny = db.rawQuery(anyQuery, new String[]{
-                    String.valueOf(medicineId),
-                    String.valueOf(startTs),
-                    String.valueOf(endTs)
-            });
-            int anyCount = 0;
-            if (cAny.moveToFirst()) anyCount = cAny.getInt(0);
-            cAny.close();
-
-            if (anyCount > 0) {
-                // there was a scheduled dose, but none taken -> missed
-                result.add(Boolean.FALSE);
             } else {
-                // no scheduled dose recorded for this day
-                result.add(null);
+                String anyQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
+                        " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ?";
+                Cursor cAny = db.rawQuery(anyQuery, new String[]{
+                        String.valueOf(medicineId), String.valueOf(startTs), String.valueOf(endTs)
+                });
+                int anyCount = 0;
+                if (cAny.moveToFirst()) anyCount = cAny.getInt(0);
+                cAny.close();
+
+                result.add(anyCount > 0 ? Boolean.FALSE : null);
             }
+
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1);
         }
 
         return result;
+    }
+
+    // Simple id+name pair used to populate the medicine picker on the report screen
+    public static class MedicineBasic {
+        public int id;
+        public String name;
+    }
+
+    public List<MedicineBasic> getAllMedicinesBasic() {
+        List<MedicineBasic> list = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT id, name FROM " + TABLE_MEDICINES + " ORDER BY name ASC", null);
+        while (c.moveToNext()) {
+            MedicineBasic m = new MedicineBasic();
+            m.id = c.getInt(0);
+            m.name = c.getString(1);
+            list.add(m);
+        }
+        c.close();
+        return list;
+    }
+
+    /**
+     * Day-start timestamps [firstDay, lastDay] to render in the adherence calendar
+     * for a medicine: from its first ever scheduled dose to min(end_date, today).
+     * Returns null if the medicine has no dose_history yet (nothing to show).
+     */
+    public long[] getMedicineCalendarRange(int medicineId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor c = db.rawQuery(
+                "SELECT MIN(scheduled_time) FROM " + TABLE_DOSE_HISTORY + " WHERE medicine_id = ?",
+                new String[]{String.valueOf(medicineId)});
+        long firstScheduled = 0;
+        if (c.moveToFirst() && !c.isNull(0)) {
+            firstScheduled = c.getLong(0);
+        }
+        c.close();
+        if (firstScheduled <= 0) return null;
+
+        long endDate = 0;
+        Cursor m = getMedicineById(medicineId);
+        if (m != null && m.moveToFirst()) {
+            try {
+                endDate = m.getLong(m.getColumnIndexOrThrow("end_date"));
+            } catch (Exception ignored) {}
+            m.close();
+        }
+
+        long now = System.currentTimeMillis();
+        long lastTs = (endDate > 0 && endDate < now) ? endDate : now;
+
+        java.util.Calendar firstCal = java.util.Calendar.getInstance();
+        firstCal.setTimeInMillis(firstScheduled);
+        normalizeToStartOfDay(firstCal);
+
+        java.util.Calendar lastCal = java.util.Calendar.getInstance();
+        lastCal.setTimeInMillis(lastTs);
+        normalizeToStartOfDay(lastCal);
+
+        // Cap the range to the most recent 120 days so the calendar stays a
+        // reasonable size for very long "Ongoing" durations.
+        java.util.Calendar cappedFirstCal = (java.util.Calendar) lastCal.clone();
+        cappedFirstCal.add(java.util.Calendar.DAY_OF_YEAR, -119);
+        if (firstCal.before(cappedFirstCal)) {
+            firstCal = cappedFirstCal;
+        }
+
+        if (firstCal.after(lastCal)) return null;
+        return new long[]{firstCal.getTimeInMillis(), lastCal.getTimeInMillis()};
+    }
+
+    private void normalizeToStartOfDay(java.util.Calendar cal) {
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
     }
 
     // Get all reports for doctor view

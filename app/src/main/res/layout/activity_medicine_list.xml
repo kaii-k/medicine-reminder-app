@@ -10,7 +10,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:background="#F5F5F5">
+        android:background="@color/card_background">
 
         <Button
             android:id="@+id/backBtn"

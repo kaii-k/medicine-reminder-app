@@ -1,14 +1,10 @@
 package com.example.medicinereminderapp;
 
-import android.app.AlarmManager;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import android.app.AlertDialog;
 import java.util.Random;
 import android.util.Log;
 
@@ -168,25 +164,6 @@ public class AddMedicineActivity extends AppCompatActivity {
      * Call this from an Activity after scheduling the alarm (so user sees the dialog).
      */
     private void ensureExactAlarmsAllowed() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-            if (am != null && !am.canScheduleExactAlarms()) {
-                new AlertDialog.Builder(this)
-                        .setTitle("Allow exact alarms")
-                        .setMessage("To reliably notify you at the exact medicine time, please allow exact alarms for this app in system settings.")
-                        .setPositiveButton("Open settings", (dialog, which) -> {
-                            Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                            if (i.resolveActivity(getPackageManager()) != null) {
-                                startActivity(i);
-                            } else {
-                                Intent appSettings = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                appSettings.setData(android.net.Uri.fromParts("package", getPackageName(), null));
-                                startActivity(appSettings);
-                            }
-                        })
-                        .setNegativeButton("Not now", null)
-                        .show();
-            }
-        }
+        AlarmPermissions.ensureExactAlarmsAllowed(this);
     }
 }

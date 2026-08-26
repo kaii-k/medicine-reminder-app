@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:padding="16dp"
-    android:background="@android:color/white">
+    android:background="@color/card_background">
 
     <!-- Medicine Info -->
     <LinearLayout

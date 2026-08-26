@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Required on Android 14+ (API 34+) for the full-screen alarm page
+         to actually launch over the lock screen; without it, the system
+         silently downgrades to a plain notification and AlarmActivity
+         (and therefore the alarm sound, which it starts) never runs. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:allowBackup="true"
