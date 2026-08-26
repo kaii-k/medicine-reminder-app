@@ -28,6 +28,14 @@ public class MainActivity extends AppCompatActivity {
             runAlarmPermissionChain();
         }
 
+        // Refresh every medicine's alarm from current data on every app open.
+        // AlarmScheduler replaces (FLAG_UPDATE_CURRENT) each medicine's existing
+        // pending alarm rather than duplicating it, so this is safe to run every
+        // time - it's what lets an alarm broken by an older app version repair
+        // itself automatically instead of requiring the user to manually delete
+        // and re-add every medicine after updating.
+        AlarmRescheduler.rescheduleAll(this);
+
         Button addMedicineBtn = findViewById(R.id.addMedicineBtn);
         Button viewMedicinesBtn = findViewById(R.id.viewMedicinesBtn);
         Button reportsBtn = findViewById(R.id.reportsBtn);
