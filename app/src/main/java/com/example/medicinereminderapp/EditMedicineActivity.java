@@ -208,6 +208,13 @@ public class EditMedicineActivity extends AppCompatActivity {
                     repeatType, "All", duration, endDate);
 
             if (success) {
+                // The alarm was originally scheduled with the old time, so it must be
+                // cancelled and rescheduled with the new time/details, otherwise the
+                // old alarm keeps firing and the edited time never triggers anything.
+                AlarmScheduler.cancelAlarm(this, medicineId);
+                int hour24 = convertTo24Hour(hour, isAM);
+                AlarmScheduler.scheduleExactAlarm(this, medicineId, name, dose, notes, hour24, minute);
+
                 Toast.makeText(this, "Medicine updated successfully!", Toast.LENGTH_SHORT).show();
 
                 // Send broadcast to refresh the list
@@ -242,5 +249,13 @@ public class EditMedicineActivity extends AppCompatActivity {
         String minuteStr = (minute < 10) ? "0" + minute : String.valueOf(minute);
         String period = isAM ? "AM" : "PM";
         return hour + ":" + minuteStr + " " + period;
+    }
+
+    private int convertTo24Hour(int hour12, boolean isAM) {
+        if (isAM) {
+            return (hour12 == 12) ? 0 : hour12;
+        } else {
+            return (hour12 == 12) ? 12 : hour12 + 12;
+        }
     }
 }

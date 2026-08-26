@@ -63,6 +63,7 @@ public class MedicineAdapter extends CursorAdapter {
         // Delete button click
         deleteBtn.setOnClickListener(v -> {
             if (dbHelper.deleteMedicine(id)) {
+                AlarmScheduler.cancelAlarm(context, id);
                 Toast.makeText(context, "Medicine deleted", Toast.LENGTH_SHORT).show();
                 // Refresh the list
                 refreshData();

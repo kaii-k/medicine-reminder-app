@@ -119,8 +119,10 @@ public class AddMedicineActivity extends AppCompatActivity {
                 // Prompt user to allow exact alarms if needed
                 ensureExactAlarmsAllowed();
 
-                db.recordDoseHistory((int) medicineId, name, dose,
-                        System.currentTimeMillis(), 0, "scheduled");
+                // Note: dose_history rows are recorded when the dose is actually taken or
+                // missed (see AlarmActionReceiver), not here - inserting a "scheduled" row
+                // with "now" as scheduled_time made the report view count today's dose as
+                // missed the instant a medicine was added, before its alarm ever fired.
 
                 Toast.makeText(this, "Medicine saved & alarm set for " + displayTime, Toast.LENGTH_LONG).show();
                 finish();

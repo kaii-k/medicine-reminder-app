@@ -56,11 +56,22 @@ public class BootReceiver extends BroadcastReceiver {
                     continue;
                 }
 
-                String[] parts = time.split(":");
+                // Stored time is a 12-hour display string like "8:30 AM" / "11:45 PM",
+                // not 24-hour "HH:MM" - it must be parsed and converted to 24-hour
+                // form, otherwise every medicine fails to parse (or reschedules 12h off).
                 int h, m;
                 try {
-                    h = Integer.parseInt(parts[0]);
-                    m = Integer.parseInt(parts[1]);
+                    String[] timeAndPeriod = time.trim().split(" ");
+                    String[] parts = timeAndPeriod[0].split(":");
+                    int hour12 = Integer.parseInt(parts[0].trim());
+                    m = Integer.parseInt(parts[1].trim());
+
+                    boolean isAM = timeAndPeriod.length < 2 || timeAndPeriod[1].trim().equalsIgnoreCase("AM");
+                    if (isAM) {
+                        h = (hour12 == 12) ? 0 : hour12;
+                    } else {
+                        h = (hour12 == 12) ? 12 : hour12 + 12;
+                    }
                 } catch (Exception ex) {
                     Log.w(TAG, "Skipping medicine id=" + id + " due to parse error: " + time, ex);
                     continue;

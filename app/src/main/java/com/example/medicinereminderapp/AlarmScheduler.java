@@ -47,17 +47,11 @@ public class AlarmScheduler {
         intent.putExtra(ReminderReceiver.EXTRA_MED_ID, medicineId);
         intent.putExtra(ReminderReceiver.EXTRA_MED_NAME, medicineName);
         intent.putExtra(ReminderReceiver.EXTRA_DOSE, dose);
+        intent.putExtra(ReminderReceiver.EXTRA_NOTES, notes);
         // Put scheduled time later after we compute it
         // Also include hour/minute if you want ReminderReceiver to reschedule next day
         intent.putExtra("hour24", hour24);
         intent.putExtra("minute", minute);
-
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
 
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, hour24);
@@ -71,6 +65,15 @@ public class AlarmScheduler {
             calendar.add(Calendar.DAY_OF_YEAR, 1);
             alarmTime = calendar.getTimeInMillis();
         }
+
+        intent.putExtra(ReminderReceiver.EXTRA_SCHEDULED_TIME, alarmTime);
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
 
         Log.d(TAG, "Scheduling alarm (medicineId=" + medicineId + ") for: " + calendar.getTime());
 

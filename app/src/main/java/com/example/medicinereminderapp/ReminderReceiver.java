@@ -22,6 +22,7 @@ public class ReminderReceiver extends BroadcastReceiver {
     public static final String EXTRA_MED_ID = "medicineId";
     public static final String EXTRA_MED_NAME = "medicineName";
     public static final String EXTRA_DOSE = "dose";
+    public static final String EXTRA_NOTES = "notes";
     public static final String EXTRA_SCHEDULED_TIME = "scheduledTime";
 
     // Notification / alarm constants (keep in sync with AlarmActionReceiver)
@@ -44,7 +45,10 @@ public class ReminderReceiver extends BroadcastReceiver {
         int medId = intent.getIntExtra(EXTRA_MED_ID, -1);
         String medName = intent.getStringExtra(EXTRA_MED_NAME);
         String dose = intent.getStringExtra(EXTRA_DOSE);
+        String notes = intent.getStringExtra(EXTRA_NOTES);
         long scheduledTime = intent.getLongExtra(EXTRA_SCHEDULED_TIME, System.currentTimeMillis());
+        int hour24 = intent.getIntExtra("hour24", -1);
+        int minute = intent.getIntExtra("minute", -1);
 
         Log.d(TAG, "onReceive - reqCode=" + requestCode + " medId=" + medId + " medName=" + medName + " sched=" + scheduledTime);
 
@@ -88,7 +92,12 @@ public class ReminderReceiver extends BroadcastReceiver {
         alarmActivityIntent.putExtra(EXTRA_MED_ID, medId);
         alarmActivityIntent.putExtra(EXTRA_MED_NAME, medName);
         alarmActivityIntent.putExtra(EXTRA_DOSE, dose);
+        alarmActivityIntent.putExtra(EXTRA_NOTES, notes);
         alarmActivityIntent.putExtra(EXTRA_SCHEDULED_TIME, scheduledTime);
+        // AlarmActivity reads these under the plain "name"/"dose"/"notes" keys
+        alarmActivityIntent.putExtra("name", medName);
+        alarmActivityIntent.putExtra("dose", dose);
+        alarmActivityIntent.putExtra("notes", notes);
 
         // Required flags: allow starting activity from receiver and reuse if already open
         alarmActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -125,6 +134,14 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         // 6) Schedule missed-check alarm (fires after DEFAULT_MISSED_DELAY_MIN minutes)
         scheduleMissedCheck(context, requestCode, medId, medName, dose, scheduledTime, DEFAULT_MISSED_DELAY_MIN);
+
+        // 7) Reschedule this reminder for its next occurrence (AlarmManager alarms are one-shot,
+        // so without this the medicine would only ever remind the user once).
+        if (hour24 >= 0 && minute >= 0) {
+            AlarmScheduler.scheduleExactAlarm(context, requestCode, medName, dose, notes, hour24, minute);
+        } else {
+            Log.w(TAG, "Missing hour24/minute extras - cannot reschedule next occurrence for reqCode=" + requestCode);
+        }
     }
 
     private void createNotificationChannelIfNeeded(Context ctx) {

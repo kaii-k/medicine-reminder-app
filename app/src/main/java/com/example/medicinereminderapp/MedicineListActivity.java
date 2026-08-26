@@ -101,6 +101,7 @@ public class MedicineListActivity extends AppCompatActivity {
                         .setMessage("Delete " + medicineName + "?")
                         .setPositiveButton("DELETE", (dialog, which) -> {
                             if (db.deleteMedicine(medicineId)) {
+                                AlarmScheduler.cancelAlarm(this, medicineId);
                                 Toast.makeText(this, "Medicine deleted", Toast.LENGTH_SHORT).show();
                                 loadData(); // Refresh the list
                             } else {
