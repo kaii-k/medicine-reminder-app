@@ -17,6 +17,7 @@ import java.util.Objects;
  * Central receiver for alarm actions:
  *  - ACTION_DONE        : user marked reminder as taken (from notification action)
  *  - ACTION_SNOOZE      : user snoozed the reminder
+ *  - ACTION_SKIP        : user explicitly skipped this dose (from the alarm screen)
  *  - ACTION_MISSED_CHECK: scheduled follow-up that marks dose missed if not done
  *
  * It records entries to your dose_history table using DatabaseHelper.recordDoseHistory(...)
@@ -27,6 +28,7 @@ public class AlarmActionReceiver extends BroadcastReceiver {
 
     public static final String ACTION_SNOOZE = "com.example.medicinereminderapp.ACTION_SNOOZE";
     public static final String ACTION_DONE = "com.example.medicinereminderapp.ACTION_DONE";
+    public static final String ACTION_SKIP = "com.example.medicinereminderapp.ACTION_SKIP";
     public static final String ACTION_MISSED_CHECK = "com.example.medicinereminderapp.ACTION_MISSED_CHECK";
 
     // Offsets used to create unique pending-intent ids for snooze/miss-check derived from original requestCode
@@ -65,6 +67,10 @@ public class AlarmActionReceiver extends BroadcastReceiver {
 
                 case ACTION_SNOOZE:
                     handleSnooze(context, db, requestCode, medicineId, medName, dose, scheduledTime);
+                    break;
+
+                case ACTION_SKIP:
+                    handleSkip(context, db, requestCode, medicineId, medName, dose, scheduledTime);
                     break;
 
                 case ACTION_MISSED_CHECK:
@@ -117,6 +123,24 @@ public class AlarmActionReceiver extends BroadcastReceiver {
 
         // schedule a one-shot snooze alarm (will re-trigger ReminderReceiver)
         scheduleSnooze(context, requestCode, medicineId, medName, dose, DEFAULT_SNOOZE_MINUTES);
+    }
+
+    // User pressed Skip on the alarm screen -> record 'skipped', cancel missed-check, cancel notification
+    private void handleSkip(Context context, DatabaseHelper db, int requestCode, int medicineId,
+                            String medName, String dose, long scheduledTime) {
+        Log.d(TAG, "handleSkip req=" + requestCode + " medId=" + medicineId);
+        try {
+            int idForDb = medicineId >= 0 ? medicineId : requestCode;
+            db.recordDoseHistory(idForDb, medName == null ? "" : medName, dose == null ? "" : dose,
+                    scheduledTime, 0L, "skipped");
+
+            sendReportUpdatedBroadcast(context);
+        } catch (Exception e) {
+            Log.e(TAG, "Error recording SKIP: " + e.getMessage(), e);
+        }
+
+        cancelPendingMissCheck(context, requestCode);
+        cancelNotification(context, requestCode);
     }
 
     // Missed check fired -> record 'missed', cancel notification
@@ -199,18 +223,26 @@ public class AlarmActionReceiver extends BroadcastReceiver {
             PendingIntent pi = PendingIntent.getBroadcast(ctx, snoozePendingId, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
 
-            if (am != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (am == null) {
+                Log.w(TAG, "AlarmManager null - cannot schedule snooze");
+                return;
+            }
+
+            // Without SCHEDULE_EXACT_ALARM granted, setExactAndAllowWhileIdle() throws
+            // rather than degrading gracefully - fall back to an inexact alarm instead
+            // of losing the snooze entirely (mirrors AlarmScheduler's fallback).
+            boolean canBeExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+            try {
+                if (canBeExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
                 } else {
                     am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
                 }
                 Log.d(TAG, "Snooze scheduled for req=" + originalReqCode + " pendingId=" + snoozePendingId + " at " + triggerAt);
-            } else {
-                Log.w(TAG, "AlarmManager null - cannot schedule snooze");
+            } catch (SecurityException se) {
+                Log.w(TAG, "Exact snooze denied, falling back to inexact: " + se.getMessage());
+                am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
             }
-        } catch (SecurityException se) {
-            Log.e(TAG, "SecurityException scheduling snooze: " + se.getMessage(), se);
         } catch (Exception e) {
             Log.e(TAG, "Error scheduling snooze: " + e.getMessage(), e);
         }

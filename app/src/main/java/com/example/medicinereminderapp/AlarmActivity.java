@@ -15,8 +15,6 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.Calendar;
-
 public class AlarmActivity extends AppCompatActivity {
     private static final String TAG = "AlarmActivity";
     private Vibrator vibrator;
@@ -63,23 +61,57 @@ public class AlarmActivity extends AppCompatActivity {
         TextView medNameTxt = findViewById(R.id.medNameTxt);
         TextView doseTxt = findViewById(R.id.doseTxt);
         TextView notesTxt = findViewById(R.id.notesTxt);
+        Button takenBtn = findViewById(R.id.takenBtn);
+        Button skipBtn = findViewById(R.id.skipBtn);
         Button snoozeBtn = findViewById(R.id.snoozeBtn);
-        Button dismissBtn = findViewById(R.id.dismissBtn);
 
         medNameTxt.setText(medName);
         doseTxt.setText("Dose: " + dose);
         notesTxt.setText(notes != null && !notes.isEmpty() ? "Notes: " + notes : "No additional notes");
 
-        snoozeBtn.setOnClickListener(v -> {
+        takenBtn.setOnClickListener(v -> {
             stopAlarm();
-            snoozeAlarm();
+            sendAlarmAction(AlarmActionReceiver.ACTION_DONE);
+            Toast.makeText(this, "Marked as taken", Toast.LENGTH_SHORT).show();
             finish();
         });
 
-        dismissBtn.setOnClickListener(v -> {
+        skipBtn.setOnClickListener(v -> {
             stopAlarm();
+            sendAlarmAction(AlarmActionReceiver.ACTION_SKIP);
+            Toast.makeText(this, "Dose skipped", Toast.LENGTH_SHORT).show();
             finish();
         });
+
+        snoozeBtn.setOnClickListener(v -> {
+            stopAlarm();
+            sendAlarmAction(AlarmActionReceiver.ACTION_SNOOZE);
+            Toast.makeText(this, "Snoozed for 10 minutes", Toast.LENGTH_SHORT).show();
+            finish();
+        });
+    }
+
+    /**
+     * Route Taken/Skip/Snooze through the same AlarmActionReceiver used by the
+     * notification actions, using the original requestCode/medicineId from the
+     * intent that launched this screen. This used to be handled ad hoc here
+     * (especially Snooze, which built its own random request code and called
+     * AlarmScheduler directly) which:
+     *  - never cancelled the pending "missed" check, so the dose still got
+     *    marked missed a few minutes later even though it was snoozed;
+     *  - created a permanent, untracked daily alarm under a random id that
+     *    editing/deleting the medicine could never cancel.
+     */
+    private void sendAlarmAction(String action) {
+        Intent intent = getIntent();
+        Intent actionIntent = new Intent(this, AlarmActionReceiver.class);
+        actionIntent.setAction(action);
+        actionIntent.putExtra("requestCode", intent.getIntExtra("requestCode", -1));
+        actionIntent.putExtra("medicineId", intent.getIntExtra("medicineId", -1));
+        actionIntent.putExtra("medicineName", intent.getStringExtra("name"));
+        actionIntent.putExtra("dose", intent.getStringExtra("dose"));
+        actionIntent.putExtra("scheduledTime", intent.getLongExtra("scheduledTime", System.currentTimeMillis()));
+        sendBroadcast(actionIntent);
     }
 
     private void startAlarm() {
@@ -113,23 +145,6 @@ public class AlarmActivity extends AppCompatActivity {
         }
 
         if (vibrator != null) vibrator.cancel();
-    }
-
-    private void snoozeAlarm() {
-        String name = getIntent().getStringExtra("name");
-        String dose = getIntent().getStringExtra("dose");
-        String notes = getIntent().getStringExtra("notes");
-
-        long snoozeTime = System.currentTimeMillis() + (10 * 60 * 1000);
-        Calendar c = Calendar.getInstance();
-        c.setTimeInMillis(snoozeTime);
-        int hour = c.get(Calendar.HOUR_OF_DAY);
-        int minute = c.get(Calendar.MINUTE);
-
-        int reqCode = (name + "snooze" + System.currentTimeMillis()).hashCode();
-        AlarmScheduler.scheduleDailyExact(this, reqCode, name, dose, notes, hour, minute);
-
-        Toast.makeText(this, "Snoozed for 10 minutes", Toast.LENGTH_SHORT).show();
     }
 
     @Override

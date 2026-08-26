@@ -101,6 +101,17 @@
                 <View
                     android:layout_width="14dp"
                     android:layout_height="14dp"
+                    android:background="@color/dose_skipped"
+                    android:layout_gravity="center_vertical" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="  Skipped   "
+                    android:textSize="12sp" />
+
+                <View
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
                     android:background="@color/dose_none"
                     android:layout_gravity="center_vertical" />
                 <TextView

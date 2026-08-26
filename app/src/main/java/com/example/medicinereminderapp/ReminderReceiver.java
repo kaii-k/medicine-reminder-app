@@ -188,15 +188,26 @@ public class ReminderReceiver extends BroadcastReceiver {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        // Without SCHEDULE_EXACT_ALARM granted, setExact*() throws instead of degrading
+        // gracefully - without this fallback, missed doses were silently never recorded
+        // at all whenever the user hadn't granted exact-alarm permission.
+        boolean canBeExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (canBeExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
-            } else {
+            } else if (canBeExact) {
                 am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
+            } else {
+                am.set(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
             }
             Log.d(TAG, "Scheduled missed-check: reqCode=" + requestCode + " triggerAt=" + triggerAt);
         } catch (SecurityException se) {
-            Log.e(TAG, "SecurityException scheduling missed-check: " + se.getMessage(), se);
+            Log.w(TAG, "Exact missed-check denied, falling back to inexact: " + se.getMessage());
+            try {
+                am.set(AlarmManager.RTC_WAKEUP, triggerAt, missPI);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed fallback scheduling missed-check: " + e.getMessage(), e);
+            }
         }
     }
 

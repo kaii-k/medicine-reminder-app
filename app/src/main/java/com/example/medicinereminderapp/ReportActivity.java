@@ -187,31 +187,36 @@ public class ReportActivity extends AppCompatActivity {
         emptyText.setVisibility(View.GONE);
         calendarScroll.setVisibility(View.VISIBLE);
 
-        List<Boolean> statuses = db.getDailyTakenStatus(medicineId, range[0], range[1]);
+        List<DatabaseHelper.DayStatus> statuses = db.getDailyStatus(medicineId, range[0], range[1]);
 
-        int taken = 0, missed = 0, tracked = 0;
-        for (Boolean s : statuses) {
-            if (s == null) continue;
-            tracked++;
-            if (s) taken++; else missed++;
+        int taken = 0, missed = 0, skipped = 0, tracked = 0;
+        for (DatabaseHelper.DayStatus s : statuses) {
+            switch (s) {
+                case TAKEN: taken++; tracked++; break;
+                case MISSED: missed++; tracked++; break;
+                case SKIPPED: skipped++; tracked++; break;
+                case NONE: break;
+            }
         }
 
         String pct = tracked == 0 ? "0%" : Math.round(taken * 100.0 / tracked) + "%";
-        adherenceSummaryText.setText(taken + " / " + tracked + " doses taken (" + pct + ")"
-                + (missed > 0 ? " — " + missed + " missed" : ""));
+        StringBuilder summary = new StringBuilder(taken + " / " + tracked + " doses taken (" + pct + ")");
+        if (missed > 0) summary.append(" — ").append(missed).append(" missed");
+        if (skipped > 0) summary.append(" — ").append(skipped).append(" skipped");
+        adherenceSummaryText.setText(summary.toString());
 
         calendarGrid.removeAllViews();
         Calendar day = Calendar.getInstance();
         day.setTimeInMillis(range[0]);
         SimpleDateFormat dayFmt = new SimpleDateFormat("d\nMMM", Locale.getDefault());
 
-        for (Boolean status : statuses) {
+        for (DatabaseHelper.DayStatus status : statuses) {
             calendarGrid.addView(buildDayCell(day.getTime(), status, dayFmt));
             day.add(Calendar.DAY_OF_YEAR, 1);
         }
     }
 
-    private TextView buildDayCell(java.util.Date date, Boolean status, SimpleDateFormat dayFmt) {
+    private TextView buildDayCell(java.util.Date date, DatabaseHelper.DayStatus status, SimpleDateFormat dayFmt) {
         TextView cell = new TextView(this);
         int sizePx = (int) (44 * getResources().getDisplayMetrics().density);
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
@@ -226,12 +231,11 @@ public class ReportActivity extends AppCompatActivity {
         cell.setTextColor(Color.WHITE);
 
         int colorRes;
-        if (status == null) {
-            colorRes = R.color.dose_none;
-        } else if (status) {
-            colorRes = R.color.dose_taken;
-        } else {
-            colorRes = R.color.dose_missed;
+        switch (status) {
+            case TAKEN: colorRes = R.color.dose_taken; break;
+            case MISSED: colorRes = R.color.dose_missed; break;
+            case SKIPPED: colorRes = R.color.dose_skipped; break;
+            default: colorRes = R.color.dose_none; break;
         }
         cell.setBackgroundColor(ContextCompat.getColor(this, colorRes));
 

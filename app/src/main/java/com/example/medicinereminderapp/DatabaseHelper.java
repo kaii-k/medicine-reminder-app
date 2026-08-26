@@ -172,39 +172,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return has;
     }
 
-    /**
-     * Return last 7 days status for a medicine (oldest -> newest).
-     * - Boolean.TRUE  -> at least one 'taken' record that day
-     * - Boolean.FALSE -> at least one scheduled dose that day but none taken (so missed)
-     * - null          -> no scheduled dose recorded that day
-     *
-     * Uses scheduled_time column (milliseconds since epoch).
-     */
-    public List<Boolean> getLast7DaysTakenStatus(int medicineId) {
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
-        cal.set(java.util.Calendar.MINUTE, 0);
-        cal.set(java.util.Calendar.SECOND, 0);
-        cal.set(java.util.Calendar.MILLISECOND, 0);
-        long todayStart = cal.getTimeInMillis();
-
-        java.util.Calendar sixDaysAgo = (java.util.Calendar) cal.clone();
-        sixDaysAgo.add(java.util.Calendar.DAY_OF_YEAR, -6);
-
-        return getDailyTakenStatus(medicineId, sixDaysAgo.getTimeInMillis(), todayStart);
-    }
+    // Per-day adherence outcome shown in the report calendar.
+    public enum DayStatus { TAKEN, MISSED, SKIPPED, NONE }
 
     /**
      * Per-day adherence status for a medicine across [startOfFirstDay, startOfLastDay]
-     * (both are day-start timestamps, oldest -> newest, inclusive).
-     * - Boolean.TRUE  -> at least one 'taken' record that day
-     * - Boolean.FALSE -> at least one scheduled dose that day but none taken (so missed)
-     * - null          -> no scheduled dose recorded that day
+     * (both are day-start timestamps, oldest -> newest, inclusive). A day with both a
+     * taken and a missed/skipped record (e.g. multiple doses that day) reports TAKEN,
+     * since that's the more useful signal for a quick adherence overview.
      *
      * Uses scheduled_time column (milliseconds since epoch).
      */
-    public List<Boolean> getDailyTakenStatus(int medicineId, long startOfFirstDay, long startOfLastDay) {
-        List<Boolean> result = new ArrayList<>();
+    public List<DayStatus> getDailyStatus(int medicineId, long startOfFirstDay, long startOfLastDay) {
+        List<DayStatus> result = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
 
         java.util.Calendar cal = java.util.Calendar.getInstance();
@@ -216,29 +196,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             dayEnd.add(java.util.Calendar.DAY_OF_YEAR, 1);
             long endTs = dayEnd.getTimeInMillis() - 1;
 
-            String takenQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
-                    " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ? AND status = 'taken'";
-            Cursor cTaken = db.rawQuery(takenQuery, new String[]{
+            String query = "SELECT status, COUNT(*) FROM " + TABLE_DOSE_HISTORY +
+                    " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ? GROUP BY status";
+            Cursor c = db.rawQuery(query, new String[]{
                     String.valueOf(medicineId), String.valueOf(startTs), String.valueOf(endTs)
             });
-            int takenCount = 0;
-            if (cTaken.moveToFirst()) takenCount = cTaken.getInt(0);
-            cTaken.close();
-
-            if (takenCount > 0) {
-                result.add(Boolean.TRUE);
-            } else {
-                String anyQuery = "SELECT COUNT(*) FROM " + TABLE_DOSE_HISTORY +
-                        " WHERE medicine_id = ? AND scheduled_time BETWEEN ? AND ?";
-                Cursor cAny = db.rawQuery(anyQuery, new String[]{
-                        String.valueOf(medicineId), String.valueOf(startTs), String.valueOf(endTs)
-                });
-                int anyCount = 0;
-                if (cAny.moveToFirst()) anyCount = cAny.getInt(0);
-                cAny.close();
-
-                result.add(anyCount > 0 ? Boolean.FALSE : null);
+            boolean hasTaken = false, hasMissed = false, hasSkipped = false;
+            while (c.moveToNext()) {
+                String status = c.getString(0);
+                int count = c.getInt(1);
+                if (count <= 0 || status == null) continue;
+                if (status.equals("taken")) hasTaken = true;
+                else if (status.equals("missed")) hasMissed = true;
+                else if (status.equals("skipped")) hasSkipped = true;
             }
+            c.close();
+
+            if (hasTaken) result.add(DayStatus.TAKEN);
+            else if (hasMissed) result.add(DayStatus.MISSED);
+            else if (hasSkipped) result.add(DayStatus.SKIPPED);
+            else result.add(DayStatus.NONE);
 
             cal.add(java.util.Calendar.DAY_OF_YEAR, 1);
         }

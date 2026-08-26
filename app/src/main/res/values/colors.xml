@@ -23,5 +23,6 @@
          taken/missed always reads the same regardless of dark mode) -->
     <color name="dose_taken">#4CAF50</color>
     <color name="dose_missed">#F44336</color>
+    <color name="dose_skipped">#FF9800</color>
     <color name="dose_none">#BDBDBD</color>
 </resources>
