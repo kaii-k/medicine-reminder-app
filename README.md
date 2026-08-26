@@ -4,6 +4,9 @@
 
 An Android application that helps users manage and track their medication schedules with exact-time alarms, snooze/done actions, and adherence reports.
 
+## Download
+[**Download the APK**](https://github.com/kaii-k/medicine-reminder-app/releases/latest) from the latest release and install it directly on an Android 7.0+ (API 24+) device (enable "Install unknown apps" for your browser/file manager first). This is a debug-signed build, intended for direct install/testing rather than Play Store distribution.
+
 ## Features
 - Add, edit, and delete medicine reminders (name, dose, time, notes, repeat type, duration)
 - Exact-time alarms with a full-screen alert, snooze, and mark-as-done actions
