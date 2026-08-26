@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# MPAndroidChart pulls in optional dependencies (e.g. realm) we don't use,
+# and its public API is invoked reflectively in a few chart-rendering paths.
+-keep class com.github.mikephil.charting.** { *; }
+-dontwarn com.github.mikephil.charting.**

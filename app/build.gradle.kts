@@ -20,9 +20,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Sign the release build with the debug key so the APK is directly
+        // installable (e.g. via a GitHub Release) without a dedicated release
+        // keystore. Not suitable for Play Store distribution.
+        getByName("debug") {}
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
