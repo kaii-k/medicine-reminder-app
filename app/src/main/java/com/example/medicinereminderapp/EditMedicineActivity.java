@@ -108,10 +108,15 @@ public class EditMedicineActivity extends AppCompatActivity {
 
             notesInput.setText(cursor.getString(4)); // notes
 
-            // Set repeat type and duration if available
+            // Set repeat type and duration if available.
+            // Looked up by column name rather than a hardcoded index - "status",
+            // "repeat_type", and "selected_days" all sit between "notes" and
+            // "duration", so a positional index here previously read the wrong
+            // columns (status instead of repeat_type, selected_days instead of
+            // duration) and silently left both spinners on their default value.
             try {
-                String repeatType = cursor.getString(5); // repeat_type
-                String duration = cursor.getString(7); // duration
+                String repeatType = cursor.getString(cursor.getColumnIndexOrThrow("repeat_type"));
+                String duration = cursor.getString(cursor.getColumnIndexOrThrow("duration"));
 
                 if (repeatType != null) {
                     setSpinnerSelection(repeatSpinner, repeatType);
