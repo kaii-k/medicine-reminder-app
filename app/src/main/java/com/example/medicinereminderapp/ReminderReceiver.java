@@ -63,6 +63,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         doneIntent.putExtra("medicineName", medName);
         doneIntent.putExtra("dose", dose);
         doneIntent.putExtra("scheduledTime", scheduledTime);
+        doneIntent.putExtra("hour24", hour24);
+        doneIntent.putExtra("minute", minute);
 
         PendingIntent donePI = PendingIntent.getBroadcast(
                 context,
@@ -78,6 +80,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         snoozeIntent.putExtra("medicineName", medName);
         snoozeIntent.putExtra("dose", dose);
         snoozeIntent.putExtra("scheduledTime", scheduledTime);
+        snoozeIntent.putExtra("hour24", hour24);
+        snoozeIntent.putExtra("minute", minute);
 
         PendingIntent snoozePI = PendingIntent.getBroadcast(
                 context,
@@ -94,6 +98,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         alarmActivityIntent.putExtra(EXTRA_DOSE, dose);
         alarmActivityIntent.putExtra(EXTRA_NOTES, notes);
         alarmActivityIntent.putExtra(EXTRA_SCHEDULED_TIME, scheduledTime);
+        alarmActivityIntent.putExtra("hour24", hour24);
+        alarmActivityIntent.putExtra("minute", minute);
         // AlarmActivity reads these under the plain "name"/"dose"/"notes" keys
         alarmActivityIntent.putExtra("name", medName);
         alarmActivityIntent.putExtra("dose", dose);

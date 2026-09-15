@@ -111,6 +111,8 @@ public class AlarmActivity extends AppCompatActivity {
         actionIntent.putExtra("medicineName", intent.getStringExtra("name"));
         actionIntent.putExtra("dose", intent.getStringExtra("dose"));
         actionIntent.putExtra("scheduledTime", intent.getLongExtra("scheduledTime", System.currentTimeMillis()));
+        actionIntent.putExtra("hour24", intent.getIntExtra("hour24", -1));
+        actionIntent.putExtra("minute", intent.getIntExtra("minute", -1));
         sendBroadcast(actionIntent);
     }
 

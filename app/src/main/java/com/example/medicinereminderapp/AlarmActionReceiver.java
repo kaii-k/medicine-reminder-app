@@ -55,6 +55,8 @@ public class AlarmActionReceiver extends BroadcastReceiver {
         String medName = intent.getStringExtra("medicineName");
         String dose = intent.getStringExtra("dose");
         long scheduledTime = intent.getLongExtra("scheduledTime", System.currentTimeMillis());
+        int hour24 = intent.getIntExtra("hour24", -1);
+        int minute = intent.getIntExtra("minute", -1);
 
         DatabaseHelper db = null;
         try {
@@ -66,7 +68,7 @@ public class AlarmActionReceiver extends BroadcastReceiver {
                     break;
 
                 case ACTION_SNOOZE:
-                    handleSnooze(context, db, requestCode, medicineId, medName, dose, scheduledTime);
+                    handleSnooze(context, db, requestCode, medicineId, medName, dose, scheduledTime, hour24, minute);
                     break;
 
                 case ACTION_SKIP:
@@ -115,14 +117,14 @@ public class AlarmActionReceiver extends BroadcastReceiver {
 
     // User pressed Snooze -> cancel current missed-check + notification and schedule a one-shot snooze alarm
     private void handleSnooze(Context context, DatabaseHelper db, int requestCode, int medicineId,
-                              String medName, String dose, long scheduledTime) {
+                              String medName, String dose, long scheduledTime, int hour24, int minute) {
         Log.d(TAG, "handleSnooze req=" + requestCode);
         // cancel pending missed-check (we'll reschedule one for snooze if desired)
         cancelPendingMissCheck(context, requestCode);
         cancelNotification(context, requestCode);
 
         // schedule a one-shot snooze alarm (will re-trigger ReminderReceiver)
-        scheduleSnooze(context, requestCode, medicineId, medName, dose, DEFAULT_SNOOZE_MINUTES);
+        scheduleSnooze(context, requestCode, medicineId, medName, dose, DEFAULT_SNOOZE_MINUTES, hour24, minute);
     }
 
     // User pressed Skip on the alarm screen -> record 'skipped', cancel missed-check, cancel notification
@@ -206,7 +208,8 @@ public class AlarmActionReceiver extends BroadcastReceiver {
     }
 
     // Schedule one-shot snooze (uses ReminderReceiver to re-show the alarm)
-    private void scheduleSnooze(Context ctx, int originalReqCode, int medicineId, String medName, String dose, int minutes) {
+    private void scheduleSnooze(Context ctx, int originalReqCode, int medicineId, String medName, String dose,
+                                int minutes, int hour24, int minute) {
         try {
             AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
             long triggerAt = System.currentTimeMillis() + minutes * 60L * 1000L;
@@ -218,6 +221,10 @@ public class AlarmActionReceiver extends BroadcastReceiver {
             intent.putExtra("medicineName", medName);
             intent.putExtra("dose", dose);
             intent.putExtra("scheduledTime", triggerAt); // snooze scheduledTime is the new trigger
+            // Without these, ReminderReceiver can't reschedule the medicine's next daily
+            // occurrence when the snooze fires, silently ending all future reminders for it.
+            intent.putExtra("hour24", hour24);
+            intent.putExtra("minute", minute);
 
             int snoozePendingId = originalReqCode + SNOOZE_OFFSET;
             PendingIntent pi = PendingIntent.getBroadcast(ctx, snoozePendingId, intent,
